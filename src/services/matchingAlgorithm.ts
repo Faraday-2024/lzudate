@@ -1,5 +1,6 @@
 import { db } from '../cloudbase';
 import { calculateMatchScore } from '../utils/matching';
+import { callGLM } from '../utils/glm';
 
 // Cosine Similarity calculation
 function cosineSimilarity(vecA: number[], vecB: number[]): number {
@@ -14,39 +15,6 @@ function cosineSimilarity(vecA: number[], vecB: number[]): number {
   }
   if (normA === 0 || normB === 0) return 0;
   return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
-}
-
-async function callGLM(prompt: string): Promise<string> {
-  const apiKey = import.meta.env.VITE_GLM_API_KEY;
-  if (!apiKey) {
-    console.error("GLM API key is missing");
-    return "";
-  }
-  
-  try {
-    const response = await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: 'glm-4.7',
-        messages: [
-          {
-            role: 'user',
-            content: prompt
-          }
-        ]
-      })
-    });
-    
-    const data = await response.json();
-    return data.choices?.[0]?.message?.content || "";
-  } catch (e) {
-    console.error("GLM API call failed:", e);
-    return "";
-  }
 }
 
 export async function runWeeklyMatching() {
@@ -199,7 +167,7 @@ AI总结画像: ${u1Data.aiSummary || '未知'}
 AI总结画像: ${u2Data.aiSummary || '未知'}
 问卷信息: ${JSON.stringify(u2Data.questionnaire || {})}`;
           
-          const responseText = await callGLM(prompt);
+          const responseText = await callGLM([{ role: 'user', content: prompt }]);
           if (responseText) {
             aiReasoning = responseText.trim();
           }

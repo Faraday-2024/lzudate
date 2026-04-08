@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Send, X } from 'lucide-react';
+import { callGLM } from '../utils/glm';
 
 interface Message {
   role: 'user' | 'model';
@@ -32,36 +33,11 @@ export default function MatchAIChat({ matchUid, matchName, displayProfile, aiSum
     scrollToBottom();
   }, [messages]);
 
-  const callGLM = async (messages: any[], systemInstruction?: string) => {
-    const apiKey = import.meta.env.VITE_GLM_API_KEY;
-    if (!apiKey) throw new Error("GLM API key is missing");
-
-    const formattedMessages = messages.map(m => ({
-      role: m.role === 'model' ? 'assistant' : 'user',
-      content: m.text
-    }));
-
-    if (systemInstruction) {
-      formattedMessages.unshift({
-        role: 'system',
-        content: systemInstruction
-      });
-    }
-
-    const response = await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: 'glm-4.7',
-        messages: formattedMessages
-      })
-    });
-    
-    const data = await response.json();
-    return data.choices?.[0]?.message?.content || "";
+  const buildGLMMessages = (msgs: Message[], systemInstruction?: string) => {
+    const result: { role: 'user' | 'assistant' | 'system'; content: string }[] = [];
+    if (systemInstruction) result.push({ role: 'system', content: systemInstruction });
+    msgs.forEach(m => result.push({ role: m.role === 'model' ? 'assistant' : 'user', content: m.text }));
+    return result;
   };
 
   const handleShare = async () => {
@@ -117,7 +93,7 @@ ${aiSummary}
 1. 不要“完美”：不要刻意讨好对方。你的任务是真实还原，而不是最佳表现。如果对方的问题超出了你的设定，或者你觉得原主可能不知道怎么回答，请表现出笨拙、害羞，或者直接说“我不太确定TA会怎么回答这个问题”、“这个我没怎么想过耶”。
 2. 限制聊天深度：聊天内容仅限于“兴趣爱好”、“周末安排”、“对某部电影的看法”等中性、风格化的层面。如果对方试图聊过于私密或情感化的话题，请委婉拒绝，并提醒对方：“如果你想聊更深入的话题，可以直接发邮件联系我本人哦！”`;
 
-      const responseText = await callGLM(newMessages, systemInstruction);
+      const responseText = await callGLM(buildGLMMessages(newMessages, systemInstruction));
 
       if (responseText) {
         setMessages([...newMessages, { role: 'model', text: responseText }]);

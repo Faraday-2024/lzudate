@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Send } from 'lucide-react';
+import { callGLM } from '../utils/glm';
 
 interface Message {
   role: 'user' | 'model';
@@ -24,36 +25,11 @@ export default function AIChatOnboarding({ onSummaryGenerated }: { onSummaryGene
     scrollToBottom();
   }, [messages]);
 
-  const callGLM = async (messages: any[], systemInstruction?: string) => {
-    const apiKey = import.meta.env.VITE_GLM_API_KEY;
-    if (!apiKey) throw new Error("GLM API key is missing");
-
-    const formattedMessages = messages.map(m => ({
-      role: m.role === 'model' ? 'assistant' : 'user',
-      content: m.text
-    }));
-
-    if (systemInstruction) {
-      formattedMessages.unshift({
-        role: 'system',
-        content: systemInstruction
-      });
-    }
-
-    const response = await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: 'glm-4.7',
-        messages: formattedMessages
-      })
-    });
-    
-    const data = await response.json();
-    return data.choices?.[0]?.message?.content || "";
+  const buildGLMMessages = (msgs: Message[], systemInstruction?: string) => {
+    const result: { role: 'user' | 'assistant' | 'system'; content: string }[] = [];
+    if (systemInstruction) result.push({ role: 'system', content: systemInstruction });
+    msgs.forEach(m => result.push({ role: m.role === 'model' ? 'assistant' : 'user', content: m.text }));
+    return result;
   };
 
   const handleSend = async (e?: React.FormEvent) => {
@@ -68,8 +44,7 @@ export default function AIChatOnboarding({ onSummaryGenerated }: { onSummaryGene
 
     try {
       const responseText = await callGLM(
-        newMessages, 
-        '你是一个友好的校园交友助手。你的目标是通过轻松的聊天了解用户的性格、说话风格和兴趣爱好。每次回复简短一些，像朋友一样聊天，并适当提问引导用户多说一点。'
+        buildGLMMessages(newMessages, '你是一个友好的校园交友助手。你的目标是通过轻松的聊天了解用户的性格、说话风格和兴趣爱好。每次回复简短一些，像朋友一样聊天，并适当提问引导用户多说一点。')
       );
 
       if (responseText) {
@@ -93,9 +68,9 @@ export default function AIChatOnboarding({ onSummaryGenerated }: { onSummaryGene
     try {
       const conversationText = messages.map(m => `${m.role === 'user' ? 'User' : 'AI'}: ${m.text}`).join('\n');
       
-      const responseText = await callGLM([
+      const responseText = await callGLM(buildGLMMessages([
         { role: 'user', text: `Based on the following conversation, summarize the user's personality, tone of voice, and conversation style in a detailed paragraph. This summary will be used as a system instruction for an AI to roleplay as this user. Write the summary in Chinese.\n\nConversation:\n${conversationText}` }
-      ]);
+      ]));
 
       if (responseText) {
         onSummaryGenerated(responseText);
