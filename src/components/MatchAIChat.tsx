@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Send, X } from 'lucide-react';
-import { callGLM } from '../utils/glm';
+import { callGLM, buildGLMMessages } from '../utils/glm';
 
 interface Message {
   role: 'user' | 'model';
@@ -32,13 +32,6 @@ export default function MatchAIChat({ matchUid, matchName, displayProfile, aiSum
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
-
-  const buildGLMMessages = (msgs: Message[], systemInstruction?: string) => {
-    const result: { role: 'user' | 'assistant' | 'system'; content: string }[] = [];
-    if (systemInstruction) result.push({ role: 'system', content: systemInstruction });
-    msgs.forEach(m => result.push({ role: m.role === 'model' ? 'assistant' : 'user', content: m.text }));
-    return result;
-  };
 
   const handleShare = async () => {
     if (messages.length < 3) {

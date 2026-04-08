@@ -48,7 +48,7 @@
               },
               "triggers": [
                 {
-                  "name": "weekly-trigger",
+                  "name": "every-monday-10am",
                   "type": "timer",
                   "config": "0 0 10 * * 1"
                 }

@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Star } from 'lucide-react';
 import AIChatOnboarding from './AIChatOnboarding';
 import { GoogleGenAI } from '@google/genai';
+import { generateEmbedding } from '../utils/glm';
 
 const COLLEGES = [
   '哲学社会学院', '经济学院', '法学院', '政治与国际关系学院', '马克思主义学院', '文学院', '外国语学院', '新闻与传播学院', '历史文化学院', '管理学院', '艺术学院', '威尔士学院', '数学与统计学院', '物理科学与技术学院', '化学化工学院', '资源环境学院', '大气科学学院', '地质科学与矿产资源学院', '生命科学学院', '土木工程与力学学院', '材料与能源学院', '信息科学与工程学院', '核科学与技术学院', '草地农业科技学院', '动物医学与生物安全学院', '基础医学院', '口腔医学院（口腔医院）', '公共卫生学院', '药学院', '护理学院', '第一临床医学院', '第二临床医学院', '萃英学院', '国际文化交流学院', '体育教研部', '其他'
@@ -265,25 +266,8 @@ export default function Onboarding() {
 
     let embedding: number[] = [];
     try {
-      const apiKey = import.meta.env.VITE_GLM_API_KEY;
-      if (apiKey) {
-        const textToEmbed = `Bio: ${formData.bio || ''}. Answers: ${JSON.stringify(formData)}. AI Summary: ${formData.aiSummary || ''}`;
-        const response = await fetch('https://open.bigmodel.cn/api/paas/v4/embeddings', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`
-          },
-          body: JSON.stringify({
-            model: 'embedding-3',
-            input: textToEmbed
-          })
-        });
-        const data = await response.json();
-        if (data.data && data.data.length > 0) {
-          embedding = data.data[0].embedding;
-        }
-      }
+      const textToEmbed = `Bio: ${formData.bio || ''}. Answers: ${JSON.stringify(formData)}. AI Summary: ${formData.aiSummary || ''}`;
+      embedding = await generateEmbedding(textToEmbed);
     } catch (e) {
       console.error("Embedding generation failed:", e);
       // Continue saving even if embedding fails

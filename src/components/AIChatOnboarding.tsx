@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Send } from 'lucide-react';
-import { callGLM } from '../utils/glm';
+import { callGLM, buildGLMMessages } from '../utils/glm';
 
 interface Message {
   role: 'user' | 'model';
@@ -24,13 +24,6 @@ export default function AIChatOnboarding({ onSummaryGenerated }: { onSummaryGene
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
-
-  const buildGLMMessages = (msgs: Message[], systemInstruction?: string) => {
-    const result: { role: 'user' | 'assistant' | 'system'; content: string }[] = [];
-    if (systemInstruction) result.push({ role: 'system', content: systemInstruction });
-    msgs.forEach(m => result.push({ role: m.role === 'model' ? 'assistant' : 'user', content: m.text }));
-    return result;
-  };
 
   const handleSend = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
