@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db, auth } from '../cloudbase';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sparkles, MessageCircle, X } from 'lucide-react';
+import { Sparkles, MessageCircle, X, Bell } from 'lucide-react';
 import MatchAIChat from './MatchAIChat';
 
 interface ArchivedMatch {
@@ -20,12 +20,31 @@ interface ArchivedMatch {
   aiReasoning?: string;
   aiSummary?: string;
   sharedMessages?: any[];
+  voucherCode?: string;
+  voucherUsed?: boolean;
+  archivedMatchDocId?: string;
+}
+
+interface BuddyNotification {
+  id: string;
+  userId: string;
+  type: 'post_comment' | 'comment_reply';
+  postId: string;
+  postTitle: string;
+  commentAuthorName: string;
+  commentAuthorUid: string;
+  commentContent?: string;
+  createdAt: string;
+  read: boolean;
 }
 
 export default function Mailbox() {
   const [archived, setArchived] = useState<ArchivedMatch[]>([]);
+  const [notifications, setNotifications] = useState<BuddyNotification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'matches' | 'notifications'>('matches');
   const [selectedMatch, setSelectedMatch] = useState<ArchivedMatch | null>(null);
+  const [selectedNotification, setSelectedNotification] = useState<BuddyNotification | null>(null);
   const [activeChatMatch, setActiveChatMatch] = useState<ArchivedMatch | null>(null);
 
   useEffect(() => {
@@ -67,7 +86,10 @@ export default function Mailbox() {
               gender: userData.questionnaire?.gender,
               compatibilityScore: data.compatibilityScore || Math.floor(Math.random() * 20) + 80,
               aiReasoning: data.aiReasoning || '你们在生活方式和价值观上有很高的契合度。',
-              aiSummary: userData.aiSummary
+              aiSummary: userData.aiSummary,
+              voucherCode: data.voucherCode,
+              voucherUsed: data.voucherUsed || false,
+              archivedMatchDocId: data._id || data.id
             });
           }
         }
@@ -140,6 +162,65 @@ export default function Mailbox() {
         // Sort by archivedAt descending
         profiles.sort((a, b) => new Date(b.archivedAt).getTime() - new Date(a.archivedAt).getTime());
         setArchived(profiles);
+
+        // Fetch buddy notifications
+        const notificationsRes = await db.collection('buddy_notifications').where({ userId: currentUid }).orderBy('createdAt', 'desc').get();
+        const notificationsList: BuddyNotification[] = [];
+        
+        for (const notifDoc of notificationsRes.data || []) {
+          const data = notifDoc;
+          notificationsList.push({
+            id: data._id || data.id,
+            userId: data.userId,
+            type: data.type,
+            postId: data.postId,
+            postTitle: data.postTitle,
+            commentAuthorName: data.commentAuthorName,
+            commentAuthorUid: data.commentAuthorUid,
+            commentContent: data.commentContent,
+            createdAt: data.createdAt,
+            read: data.read || false
+          });
+        }
+        
+        setNotifications(notificationsList);
+
+        // 设置实时监听通知变化
+        const notificationWatcher = db.collection('buddy_notifications').where({ userId: currentUid }).watch({
+          onChange: async (snapshot: any) => {
+            const updatedNotifications: BuddyNotification[] = [];
+            const docs = snapshot.docs || [];
+            
+            for (const notifDoc of docs) {
+              const data = notifDoc;
+              updatedNotifications.push({
+                id: data._id || data.id,
+                userId: data.userId,
+                type: data.type,
+                postId: data.postId,
+                postTitle: data.postTitle,
+                commentAuthorName: data.commentAuthorName,
+                commentAuthorUid: data.commentAuthorUid,
+                commentContent: data.commentContent,
+                createdAt: data.createdAt,
+                read: data.read || false
+              });
+            }
+            
+            // 按时间倒序排列
+            updatedNotifications.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+            setNotifications(updatedNotifications);
+          },
+          onError: (err: any) => {
+            console.error('Notification watcher error:', err);
+          }
+        });
+
+        return () => {
+          if (notificationWatcher && typeof notificationWatcher.close === 'function') {
+            notificationWatcher.close();
+          }
+        };
       } catch (err) {
         console.error("Error fetching archived matches:", err);
       } finally {
@@ -213,6 +294,46 @@ export default function Mailbox() {
     };
   }, [archived.map(m => m.uid).join(',')]);
 
+  const handleUseVoucher = async (match: ArchivedMatch) => {
+    if (!match.archivedMatchDocId || match.voucherUsed) return;
+    
+    try {
+      await db.collection('archived_matches').doc(match.archivedMatchDocId).update({
+        voucherUsed: true
+      });
+
+      setSelectedMatch(prevMatch => {
+        if (prevMatch && prevMatch.uid === match.uid) {
+          return { ...prevMatch, voucherUsed: true };
+        }
+        return prevMatch;
+      });
+
+      setArchived(prevArchived => prevArchived.map(m => {
+        if (m.uid === match.uid && m.archivedMatchDocId === match.archivedMatchDocId) {
+          return { ...m, voucherUsed: true };
+        }
+        return m;
+      }));
+    } catch (err) {
+      console.error("Error using voucher:", err);
+    }
+  };
+
+  const handleMarkNotificationAsRead = async (notification: BuddyNotification) => {
+    try {
+      await db.collection('buddy_notifications').doc(notification.id).update({
+        read: true
+      });
+      
+      setNotifications(prev => prev.map(n => 
+        n.id === notification.id ? { ...n, read: true } : n
+      ));
+    } catch (err) {
+      console.error("Error marking notification as read:", err);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex flex-col justify-center items-center h-[60vh]">
@@ -221,11 +342,11 @@ export default function Mailbox() {
     );
   }
 
-  if (archived.length === 0) {
+  if (archived.length === 0 && notifications.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] text-center px-4">
         <h3 className="text-2xl font-extrabold text-black mb-2">信箱空空如也</h3>
-        <p className="text-gray-500 font-medium">你评价过的匹配对象会出现在这里。</p>
+        <p className="text-gray-500 font-medium">你的匹配记录和通知会出现在这里。</p>
       </div>
     );
   }
@@ -234,11 +355,43 @@ export default function Mailbox() {
     <div className="max-w-3xl mx-auto pb-12">
       <div className="mb-8">
         <h2 className="text-3xl font-extrabold text-black tracking-tight">信箱</h2>
-        <p className="text-gray-500 mt-2">归档的匹配记录</p>
+        <p className="text-gray-500 mt-2">匹配、通知、聊天记录</p>
       </div>
 
-      <div className="space-y-4">
-        {archived.map((match, index) => (
+      {/* Tabs */}
+      <div className="mb-6 flex gap-4 border-b border-gray-200">
+        <button
+          onClick={() => setActiveTab('matches')}
+          className={`pb-3 px-1 font-bold text-sm transition-colors ${
+            activeTab === 'matches'
+              ? 'text-black border-b-2 border-black'
+              : 'text-gray-500 hover:text-black'
+          }`}
+        >
+          匹配记录 ({archived.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('notifications')}
+          className={`pb-3 px-1 font-bold text-sm transition-colors flex items-center gap-2 ${
+            activeTab === 'notifications'
+              ? 'text-black border-b-2 border-black'
+              : 'text-gray-500 hover:text-black'
+          }`}
+        >
+          <Bell className="w-4 h-4" />
+          通知 ({notifications.filter(n => !n.read).length})
+        </button>
+      </div>
+
+      {/* Matches Tab */}
+      {activeTab === 'matches' && (
+        <div className="space-y-4">
+          {archived.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-gray-500 font-medium">暂无匹配记录</p>
+            </div>
+          ) : (
+            archived.map((match, index) => (
           <motion.div 
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -264,8 +417,61 @@ export default function Mailbox() {
               <p className="text-xs font-medium text-gray-400 truncate">邮箱: {match.email}</p>
             </div>
           </motion.div>
-        ))}
-      </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Notifications Tab */}
+      {activeTab === 'notifications' && (
+        <div className="space-y-4">
+          {notifications.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-gray-500 font-medium">暂无通知</p>
+            </div>
+          ) : (
+            notifications.map((notification, index) => (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.05 }}
+                key={notification.id}
+                onClick={() => {
+                  setSelectedNotification(notification);
+                  if (!notification.read) {
+                    handleMarkNotificationAsRead(notification);
+                  }
+                }}
+                className={`rounded-2xl border p-4 flex items-start gap-4 cursor-pointer transition-colors ${
+                  notification.read
+                    ? 'bg-white border-gray-100 hover:border-gray-300'
+                    : 'bg-blue-50 border-blue-200 hover:border-blue-300'
+                }`}
+              >
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${
+                  notification.read ? 'bg-gray-100' : 'bg-blue-100'
+                }`}>
+                  <Bell className={`w-6 h-6 ${notification.read ? 'text-gray-600' : 'text-blue-600'}`} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-bold text-black">
+                    {notification.type === 'post_comment' 
+                      ? `${notification.commentAuthorName} 评论了你的帖子`
+                      : `${notification.commentAuthorName} 回复了你的评论`}
+                  </h3>
+                  <p className="text-sm text-gray-600 truncate mt-1">"{notification.postTitle}"</p>
+                  <p className="text-xs text-gray-500 mt-2">
+                    {new Date(notification.createdAt).toLocaleString('zh-CN')}
+                  </p>
+                </div>
+                {!notification.read && (
+                  <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 mt-2" />
+                )}
+              </motion.div>
+            ))
+          )}
+        </div>
+      )}
 
       <AnimatePresence>
         {selectedMatch && (
@@ -362,6 +568,29 @@ export default function Mailbox() {
                       <span className="text-xs font-bold text-gray-500 uppercase tracking-widest block mb-1">TA的邮箱</span>
                       <span className="text-black font-bold text-lg">{selectedMatch.email}</span>
                     </div>
+
+                    {selectedMatch.status === 'satisfied' && selectedMatch.voucherCode && (
+                      <div className="bg-gradient-to-br from-amber-50 to-orange-50 p-4 rounded-xl border-2 border-amber-200 flex flex-col justify-center">
+                        <span className="text-xs font-bold text-amber-700 uppercase tracking-widest block mb-2">☕ 咖啡核销码</span>
+                        <div className="flex items-center justify-between gap-4 mb-3">
+                          <span className="text-2xl font-black text-amber-900 tracking-widest font-mono">{selectedMatch.voucherCode}</span>
+                          <button
+                            onClick={() => handleUseVoucher(selectedMatch)}
+                            disabled={selectedMatch.voucherUsed}
+                            className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors ${
+                              selectedMatch.voucherUsed
+                                ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                                : 'bg-amber-600 hover:bg-amber-700 text-white'
+                            }`}
+                          >
+                            {selectedMatch.voucherUsed ? '✓ 已使用' : '使用'}
+                          </button>
+                        </div>
+                        {selectedMatch.voucherUsed && (
+                          <span className="text-xs text-amber-700 font-semibold">此核销码已被使用</span>
+                        )}
+                      </div>
+                    )}
                     
                     {selectedMatch.aiSummary ? (
                       <button
@@ -393,6 +622,68 @@ export default function Mailbox() {
             aiSummary={activeChatMatch.aiSummary || ''}
             onClose={() => setActiveChatMatch(null)}
           />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {selectedNotification && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden max-h-[90vh] flex flex-col"
+            >
+              <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0">
+                <h3 className="font-bold text-lg">帖子评论</h3>
+                <button onClick={() => setSelectedNotification(null)} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <div className="overflow-y-auto p-6 flex-1">
+                <div className="mb-6">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Bell className="w-5 h-5 text-blue-600" />
+                    <h3 className="font-bold text-lg">{selectedNotification.postTitle}</h3>
+                  </div>
+                  <p className="text-sm text-gray-600">
+                    {selectedNotification.type === 'post_comment'
+                      ? `${selectedNotification.commentAuthorName} 在你的帖子下留言了`
+                      : `${selectedNotification.commentAuthorName} 回复了你的评论`}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-2">
+                    {new Date(selectedNotification.createdAt).toLocaleString('zh-CN')}
+                  </p>
+                </div>
+
+                <div className="bg-blue-50 rounded-xl p-4 border-2 border-blue-200 mb-4">
+                  <p className="text-xs font-bold text-blue-700 uppercase tracking-widest block mb-2">评论内容</p>
+                  <p className="text-sm text-gray-700 font-medium">{selectedNotification.commentContent || '（评论内容未加载）'}</p>
+                </div>
+
+                <div className="bg-gray-50 rounded-xl p-4 border border-gray-200 mb-6">
+                  <p className="text-sm text-gray-700 font-medium">发送者：{selectedNotification.commentAuthorName}</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {selectedNotification.type === 'post_comment'
+                      ? '点击下方按钮回到搭子页面查看完整评论及其他回复'
+                      : '点击下方按钮回到搭子页面查看这条评论及回复'}
+                  </p>
+                </div>
+
+                <div className="mt-6">
+                  <button
+                    onClick={() => {
+                      setSelectedNotification(null);
+                    }}
+                    className="w-full py-3 bg-black hover:bg-gray-800 text-white rounded-xl font-bold transition-colors"
+                  >
+                    关闭
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </div>

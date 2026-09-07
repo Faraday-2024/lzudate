@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Send, X } from 'lucide-react';
-import { callGLM, buildGLMMessages } from '../utils/glm';
+import { callAIChat, toUserFriendlyAIError } from '../services/aiService';
 
 interface Message {
   role: 'user' | 'model';
@@ -86,14 +86,17 @@ ${aiSummary}
 1. 不要“完美”：不要刻意讨好对方。你的任务是真实还原，而不是最佳表现。如果对方的问题超出了你的设定，或者你觉得原主可能不知道怎么回答，请表现出笨拙、害羞，或者直接说“我不太确定TA会怎么回答这个问题”、“这个我没怎么想过耶”。
 2. 限制聊天深度：聊天内容仅限于“兴趣爱好”、“周末安排”、“对某部电影的看法”等中性、风格化的层面。如果对方试图聊过于私密或情感化的话题，请委婉拒绝，并提醒对方：“如果你想聊更深入的话题，可以直接发邮件联系我本人哦！”`;
 
-      const responseText = await callGLM(buildGLMMessages(newMessages, systemInstruction));
+      const responseText = await callAIChat({
+        messages: newMessages,
+        systemInstruction
+      });
 
       if (responseText) {
         setMessages([...newMessages, { role: 'model', text: responseText }]);
       }
     } catch (error) {
       console.error("Chat error:", error);
-      setMessages([...newMessages, { role: 'model', text: '（网络似乎有点问题，请稍后再试）' }]);
+      setMessages([...newMessages, { role: 'model', text: `（${toUserFriendlyAIError(error)}）` }]);
     } finally {
       setLoading(false);
     }

@@ -82,5 +82,53 @@ service cloud.firestore {
       allow read: if isAuthenticated() && (request.auth.uid == resource.data.fromUserId || request.auth.uid == resource.data.toUserId);
       allow create: if isAuthenticated() && request.resource.data.fromUserId == request.auth.uid;
     }
+
+    match /buddy_posts/{postId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() &&
+                    request.resource.data.uid == request.auth.uid &&
+                    request.resource.data.category is string &&
+                    request.resource.data.title is string &&
+                    request.resource.data.title.size() >= 4 &&
+                    request.resource.data.title.size() <= 60 &&
+                    request.resource.data.content is string &&
+                    request.resource.data.content.size() >= 10 &&
+                    request.resource.data.content.size() <= 600 &&
+                    request.resource.data.keys().hasOnly(['uid', 'category', 'title', 'content', 'createdAt', 'expiresAt']);
+      allow update: if isAuthenticated() &&
+                    resource.data.uid == request.auth.uid &&
+                    request.resource.data.uid == resource.data.uid &&
+                    request.resource.data.createdAt == resource.data.createdAt &&
+                    request.resource.data.category is string &&
+                    request.resource.data.title is string &&
+                    request.resource.data.title.size() >= 4 &&
+                    request.resource.data.title.size() <= 60 &&
+                    request.resource.data.content is string &&
+                    request.resource.data.content.size() >= 10 &&
+                    request.resource.data.content.size() <= 600 &&
+                    request.resource.data.keys().hasOnly(['uid', 'category', 'title', 'content', 'createdAt', 'expiresAt']);
+      allow delete: if isAuthenticated() && resource.data.uid == request.auth.uid;
+    }
+
+    match /buddy_comments/{commentId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() &&
+                    request.resource.data.uid == request.auth.uid &&
+                    request.resource.data.postId is string &&
+                    request.resource.data.content is string &&
+                    request.resource.data.content.size() > 0 &&
+                    request.resource.data.content.size() <= 300 &&
+                    request.resource.data.keys().hasOnly(['postId', 'uid', 'content', 'createdAt']);
+      allow update: if isAuthenticated() &&
+                    resource.data.uid == request.auth.uid &&
+                    request.resource.data.uid == resource.data.uid &&
+                    request.resource.data.postId == resource.data.postId &&
+                    request.resource.data.createdAt == resource.data.createdAt &&
+                    request.resource.data.content is string &&
+                    request.resource.data.content.size() > 0 &&
+                    request.resource.data.content.size() <= 300 &&
+                    request.resource.data.keys().hasOnly(['postId', 'uid', 'content', 'createdAt']);
+      allow delete: if isAuthenticated() && resource.data.uid == request.auth.uid;
+    }
   }
 }

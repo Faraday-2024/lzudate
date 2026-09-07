@@ -7,6 +7,7 @@ import Auth from './components/Auth';
 import Onboarding from './components/Onboarding';
 import Layout from './components/Layout';
 import Matches from './components/Matches';
+import Buddies from './components/Buddies';
 import Profile from './components/Profile';
 import Mailbox from './components/Mailbox';
 
@@ -57,6 +58,7 @@ export default function App() {
         
         <Route element={user ? <Layout /> : <Navigate to="/login" />}>
           <Route path="/matches" element={<Matches />} />
+          <Route path="/buddies" element={<Buddies />} />
           <Route path="/mailbox" element={<Mailbox />} />
           <Route path="/profile" element={<Profile />} />
         </Route>

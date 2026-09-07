@@ -90,6 +90,7 @@ const FaqCard = ({ data }: { data: any }) => {
 export default function Landing() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
+  const [showContact, setShowContact] = useState(false);
 
   const handleGetStarted = (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,7 +108,6 @@ export default function Landing() {
             alt="Dreamy landscape"
             className="w-full h-full object-cover"
           />
-          <div className="absolute inset-0 bg-black/20" />
           <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-[#FDFBF7] to-transparent" />
         </div>
 
@@ -328,12 +328,32 @@ export default function Landing() {
               <h4 className="font-bold mb-4 text-sm tracking-wider text-white/80 uppercase">关于</h4>
               <ul className="space-y-3 text-sm text-white/60">
                 <li><a href="#" className="hover:text-white transition-colors">隐私政策</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">联系我们</a></li>
+                <li><button onClick={() => setShowContact(true)} className="hover:text-white transition-colors text-white/60 text-sm">联系我们</button></li>
               </ul>
             </div>
           </div>
         </div>
       </footer>
+      {/* Contact Modal */}
+      {showContact && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-sm"
+          onClick={() => setShowContact(false)}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.92, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ duration: 0.2 }}
+            className="bg-white border border-gray-100 rounded-3xl p-8 max-w-xs w-full mx-6 shadow-2xl text-gray-800"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-base font-semibold leading-relaxed mb-5">如果您有任何的建议与反馈，欢迎联系我们！</p>
+            <p className="text-sm text-gray-600 mb-1">邮箱1：xshipeng2024@lzu.edu.cn</p>
+            <p className="text-sm text-gray-600 mb-1">邮箱2：faradaycn@outlook.com</p>
+            <p className="text-sm text-gray-600">QQ：1938590518</p>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

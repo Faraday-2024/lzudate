@@ -8,6 +8,7 @@ export default function Profile() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
+  const [showContact, setShowContact] = useState(false);
   const navigate = useNavigate();
   
   const [formData, setFormData] = useState({
@@ -84,6 +85,12 @@ export default function Profile() {
     <div className="max-w-2xl mx-auto">
       <div className="mb-10 flex justify-between items-end">
         <h2 className="text-4xl font-extrabold text-black tracking-tight">个人主页</h2>
+        <button
+          onClick={() => setShowContact(true)}
+          className="px-4 py-2 text-sm font-bold text-black hover:bg-white/20 transition-colors rounded-lg"
+        >
+          联系我们
+        </button>
       </div>
 
       <motion.div 
@@ -215,6 +222,27 @@ export default function Profile() {
           退出
         </button>
       </div>
+      
+      {/* Contact Modal */}
+      {showContact && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center backdrop-blur-sm"
+          onClick={() => setShowContact(false)}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.92, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ duration: 0.2 }}
+            className="bg-white/30 backdrop-blur-2xl border border-white/40 rounded-3xl p-8 max-w-xs w-full mx-6 shadow-2xl text-black"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-base font-semibold leading-relaxed mb-5">如果您有任何的建议与反馈，欢迎联系我们！</p>
+            <p className="text-sm mb-1">xshipeng2024@lzu.edu.cn</p>
+            <p className="text-sm mb-1">faradaycn@outlook.com</p>
+            <p className="text-sm">QQ：1938590518</p>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

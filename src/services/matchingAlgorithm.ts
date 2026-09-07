@@ -1,6 +1,6 @@
 import { db } from '../cloudbase';
 import { calculateMatchScore } from '../utils/matching';
-import { callGLM } from '../utils/glm';
+import { callAIChat } from './aiService';
 
 // Cosine Similarity calculation
 function cosineSimilarity(vecA: number[], vecB: number[]): number {
@@ -15,6 +15,23 @@ function cosineSimilarity(vecA: number[], vecB: number[]): number {
   }
   if (normA === 0 || normB === 0) return 0;
   return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+}
+
+async function callGLM(prompt: string): Promise<string> {
+  try {
+    return await callAIChat({
+      model: import.meta.env.VITE_GLM_HIGH_QUALITY_MODEL || 'glm-4.7',
+      messages: [
+        {
+          role: 'user',
+          text: prompt
+        }
+      ]
+    });
+  } catch (e) {
+    console.error("GLM API call failed:", e);
+    return "";
+  }
 }
 
 export async function runWeeklyMatching() {

@@ -1,62 +1,16 @@
 {
-  "version": "2.0",
-  "envId": "{{env.ENV_ID}}",
-  "framework": {
-    "name": "lzudate",
-    "plugins": {
-      "client": {
-        "use": "@cloudbase/framework-plugin-website",
-        "inputs": {
-          "buildCommand": "npm run build",
-          "outputPath": "dist",
-          "cloudPath": "/"
-        }
-      },
-      "glm-proxy": {
-        "use": "@cloudbase/framework-plugin-function",
-        "inputs": {
-          "functionRootPath": "cloudfunctions",
-          "functions": [
-            {
-              "name": "glm-proxy",
-              "timeout": 30,
-              "runtime": "Nodejs18.15",
-              "memorySize": 256,
-              "installDependency": true,
-              "handler": "index.main",
-              "envVariables": {
-                "GLM_API_KEY": "{{env.GLM_API_KEY}}"
-              }
-            }
-          ]
-        }
-      },
-      "weekly-matching": {
-        "use": "@cloudbase/framework-plugin-function",
-        "inputs": {
-          "functionRootPath": "cloudfunctions",
-          "functions": [
-            {
-              "name": "weekly-matching",
-              "timeout": 300,
-              "runtime": "Nodejs18.15",
-              "memorySize": 512,
-              "installDependency": true,
-              "handler": "index.main",
-              "envVariables": {
-                "GLM_API_KEY": "{{env.GLM_API_KEY}}"
-              },
-              "triggers": [
-                {
-                  "name": "every-monday-10am",
-                  "type": "timer",
-                  "config": "0 0 10 * * 1"
-                }
-              ]
-            }
-          ]
-        }
+  "envId": "a123-4gxazzxl6f2c4fa7",
+  "functionRoot": "cloudfunctions",
+  "functions": [],
+  "hosting": {
+    "staticPath": "dist",
+    "defaultDocument": "index.html",
+    "errorDocument": "index.html",
+    "rewrite": [
+      {
+        "source": "**",
+        "destination": "/index.html"
       }
-    }
+    ]
   }
 }

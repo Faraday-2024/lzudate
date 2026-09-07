@@ -47,12 +47,22 @@ export default function Auth() {
   }, [isLogin]);
 
   const handleSendCode = async () => {
-    if (!email.endsWith('@lzu.edu.cn')) {
-      setError('必须使用 @lzu.edu.cn 邮箱');
+    const normalizedUsername = username.trim();
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedUsername) {
+      setError('请先填写用户名');
       return;
     }
-    if (!username) {
-      setError('请先填写用户名');
+    if (!/^[a-z][a-z0-9]{5,}$/.test(normalizedUsername)) {
+      setError('用户名是小写字母开头且至少6位哦');
+      return;
+    }
+    if (!normalizedEmail) {
+      setError('请先填写邮箱');
+      return;
+    }
+    if (!/^[^\s@]+@lzu\.edu\.cn$/i.test(normalizedEmail)) {
+      setError('邮箱必须是 @lzu.edu.cn');
       return;
     }
     if (!password) {
@@ -63,8 +73,8 @@ export default function Auth() {
     setSendingCode(true);
     try {
       const res = await auth.signUp({
-        email,
-        username,
+        email: normalizedEmail,
+        username: normalizedUsername,
         password,
       });
       if (res.error) {
@@ -76,8 +86,8 @@ export default function Auth() {
       }
     } catch (err: any) {
       let errorMsg = err.message || '发送验证码失败，请重试';
-      if (errorMsg.toLowerCase().includes('username')) {
-        errorMsg = '用户名需要是小写字母和数字哦';
+      if (errorMsg.toLowerCase().includes('email')) {
+        errorMsg = '邮箱必须是 @lzu.edu.cn';
       }
       setError(errorMsg);
     } finally {
@@ -129,8 +139,25 @@ export default function Auth() {
         }
       } else {
         // 注册状态
-        if (!email.endsWith('@lzu.edu.cn')) {
-          setError('必须使用 @lzu.edu.cn 邮箱注册');
+        const normalizedUsername = username.trim();
+        const normalizedEmail = email.trim().toLowerCase();
+        if (!normalizedUsername) {
+          setError('请先填写用户名');
+          setLoading(false);
+          return;
+        }
+        if (!/^[a-z][a-z0-9]{5,}$/.test(normalizedUsername)) {
+          setError('用户名是小写字母开头且至少6位哦');
+          setLoading(false);
+          return;
+        }
+        if (!normalizedEmail) {
+          setError('请先填写邮箱');
+          setLoading(false);
+          return;
+        }
+        if (!/^[^\s@]+@lzu\.edu\.cn$/i.test(normalizedEmail)) {
+          setError('邮箱必须是 @lzu.edu.cn');
           setLoading(false);
           return;
         }
@@ -157,8 +184,8 @@ export default function Auth() {
         if (!userExists) {
           await db.collection('users').doc(uid).set({
             uid: uid,
-            email: email.toLowerCase(),
-            username: username,
+            email: normalizedEmail,
+            username: normalizedUsername,
             onboardingCompleted: false,
             createdAt: new Date().toISOString()
           });
@@ -167,8 +194,8 @@ export default function Auth() {
       }
     } catch (err: any) {
       let errorMsg = err.message || '认证失败，请检查输入是否正确';
-      if (errorMsg.toLowerCase().includes('username')) {
-        errorMsg = '用户名需要是小写字母和数字哦';
+      if (errorMsg.toLowerCase().includes('email')) {
+        errorMsg = '邮箱必须是 @lzu.edu.cn';
       }
       setError(errorMsg);
     } finally {
@@ -260,7 +287,7 @@ export default function Auth() {
                       required
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
-                      placeholder="设置用户名"
+                      placeholder="用户名是小写字母开头且至少6位哦"
                       className="w-full px-5 py-4 bg-white/20 border-2 border-black rounded-2xl focus:outline-none focus:border-black/60 transition-colors text-black placeholder:text-black/70 text-lg font-medium shadow-inner"
                     />
                   </div>
@@ -280,7 +307,7 @@ export default function Auth() {
                       required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="校园邮箱 (@lzu.edu.cn)"
+                      placeholder="请输入 @lzu.edu.cn 邮箱"
                       className="w-full px-5 py-4 bg-white/20 border-2 border-black rounded-2xl focus:outline-none focus:border-black/60 transition-colors text-black placeholder:text-black/70 text-lg font-medium shadow-inner"
                     />
                   </div>
