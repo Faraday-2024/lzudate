@@ -69,7 +69,7 @@ exports.main = async (event = {}) => {
 
     const now = new Date();
     const nowIso = now.toISOString();
-    const legacyCutoffIso = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString();
+    const legacyCutoffIso = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString();
 
     const expiredByExpiresAt = await queryExpiredIds(
       { expiresAt: db.command.lte(nowIso) },

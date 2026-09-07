@@ -1,0 +1,16 @@
+{
+  "envId": "a123-4gxazzxl6f2c4fa7",
+  "functionRoot": "cloudfunctions",
+  "functions": [],
+  "hosting": {
+    "staticPath": "dist",
+    "defaultDocument": "index.html",
+    "errorDocument": "index.html",
+    "rewrite": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}

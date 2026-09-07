@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import MatchAIChat from './MatchAIChat';
 import AIChatOnboarding from './AIChatOnboarding';
 import { useNavigate } from 'react-router-dom';
-import { MessageCircle, Heart, Target, Sparkles, Check, X, Zap } from 'lucide-react';
+import { MessageCircle, Heart, Target, Sparkles, Check, X, Zap, RefreshCw } from 'lucide-react';
 
 interface MatchProfile {
   uid: string;
@@ -65,8 +65,9 @@ export default function Matches() {
   const [showTrainModal, setShowTrainModal] = useState(false);
   const [showFailedMatchScreen, setShowFailedMatchScreen] = useState(false);
   const [showCoffeeModal, setShowCoffeeModal] = useState(false);
+  const [coffeeCardIndex, setCoffeeCardIndex] = useState(0);
   const [revealedEmails, setRevealedEmails] = useState<Record<string, boolean>>({});
-  const [activeUsersCount, setActiveUsersCount] = useState<number>(128);
+  const [activeUsersCount, setActiveUsersCount] = useState<number>(0);
   const [matchedPairsCount, setMatchedPairsCount] = useState<number>(0);
   const [maleCount, setMaleCount] = useState<number>(0);
   const [femaleCount, setFemaleCount] = useState<number>(0);
@@ -74,17 +75,24 @@ export default function Matches() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const usersRes = await db.collection('users').where({ isParticipating: true }).get();
-        if (usersRes.data) {
-          setActiveUsersCount(usersRes.data.length);
-          const male = usersRes.data.filter((u: any) => u?.questionnaire?.gender === '男').length;
-          const female = usersRes.data.filter((u: any) => u?.questionnaire?.gender === '女').length;
-          setMaleCount(male);
-          setFemaleCount(female);
+        const [activeUsersRes, maleCountRes, femaleCountRes, matchesRes] = await Promise.all([
+          db.collection('users').where({ isParticipating: true }).count(),
+          db.collection('users').where({ isParticipating: true, 'questionnaire.gender': '男' }).count(),
+          db.collection('users').where({ isParticipating: true, 'questionnaire.gender': '女' }).count(),
+          db.collection('matches').count()
+        ]);
+
+        if (activeUsersRes?.total !== undefined) {
+          setActiveUsersCount(activeUsersRes.total);
         }
-        const matchesRes = await db.collection('matches').get();
-        if (matchesRes.data) {
-          setMatchedPairsCount(matchesRes.data.length);
+        if (maleCountRes?.total !== undefined) {
+          setMaleCount(maleCountRes.total);
+        }
+        if (femaleCountRes?.total !== undefined) {
+          setFemaleCount(femaleCountRes.total);
+        }
+        if (matchesRes?.total !== undefined) {
+          setMatchedPairsCount(matchesRes.total);
         }
       } catch (err) {
         console.error("Failed to fetch stats:", err);
@@ -408,6 +416,10 @@ export default function Matches() {
     }
   };
 
+  const generateCoffeeCode = (): string => {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+  };
+
   const handleFeedback = async (match: MatchProfile, status: 'satisfied' | 'unsatisfied') => {
     const loginState = await auth.getLoginState();
     if (!loginState) return;
@@ -416,12 +428,47 @@ export default function Matches() {
 
     setArchiving(true);
     try {
-      await db.collection('archived_matches').add({
+      // Generate coffee code for satisfied matches
+      let coffeeCode = undefined;
+      if (status === 'satisfied') {
+        coffeeCode = generateCoffeeCode();
+      }
+
+      const archivedData: any = {
         userId: uid,
         matchUid: match.uid,
         status,
         archivedAt: new Date().toISOString()
-      });
+      };
+
+      if (coffeeCode) {
+        archivedData.voucherCode = coffeeCode;
+        archivedData.voucherUsed = false;
+      }
+
+      await db.collection('archived_matches').add(archivedData);
+
+      // If satisfied, try to sync coffee code with counterpart
+      if (status === 'satisfied' && coffeeCode) {
+        try {
+          const counterpartRes = await db.collection('archived_matches').where({
+            userId: match.uid,
+            matchUid: uid,
+            status: 'satisfied'
+          }).get();
+
+          if (counterpartRes.data && counterpartRes.data.length > 0) {
+            const counterpartDoc = counterpartRes.data[0];
+            // Update counterpart with same coffee code
+            await db.collection('archived_matches').doc(counterpartDoc._id || counterpartDoc.id).update({
+              voucherCode: coffeeCode,
+              voucherUsed: false
+            });
+          }
+        } catch (err) {
+          console.error("Error syncing coffee code with counterpart:", err);
+        }
+      }
       
       setMatches(matches.filter(m => m.uid !== match.uid));
     } catch (err) {
@@ -506,27 +553,60 @@ export default function Matches() {
             {isParticipating ? '已参与本周匹配' : '参与本周匹配'}
           </button>
         </div>
-
         {isParticipating && (
-          <motion.div 
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0 }}
-            onClick={() => setShowCoffeeModal(true)}
-            className="bg-white/5 backdrop-blur-md rounded-3xl border border-white/10 overflow-hidden shadow-xl cursor-pointer hover:border-white/20 transition-colors mb-8"
-          >
-            <div className="relative h-56 sm:h-64">
-              <img 
-                src="/lzucoffee.jpg"
-                alt="LZU Coffee联名" 
-                className="absolute inset-0 w-full h-full object-cover"
-              />
-              <div className="relative z-10 h-full p-6 sm:p-8 pt-9 sm:pt-10 flex flex-col justify-start">
-                    <h3 className="text-3xl font-bold italic text-white leading-tight">LZU Coffee联名</h3>
-                    <h3 className="text-3xl font-bold italic text-white leading-tight">享“久久”咖啡</h3>
-              </div>
-            </div>
-          </motion.div>
+          <div className="relative h-56 sm:h-64 mb-8">
+            {[
+              { idx: coffeeCardIndex, title1: '蜜雪甜意', title2: '雪王加入中', image: '/雪王.png' },
+              { idx: (coffeeCardIndex + 1) % 2, title1: 'LZU Coffee联名', title2: '"八分"咖啡，二分春色', image: '/lzucoffee.jpg' }
+            ]
+              .sort((a, b) => a.idx - b.idx)
+              .reverse()
+              .map((card, i) => {
+                const depth = 1 - i;
+                return (
+                  <motion.div
+                    key={`coffee-${card.title1}`}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{
+                      opacity: 1,
+                      y: depth * 12,
+                      x: depth * 9,
+                      scale: 1 - depth * 0.045,
+                      rotate: depth * -1.25
+                    }}
+                    transition={{ duration: 0.22 }}
+                    onClick={() => setShowCoffeeModal(true)}
+                    className="absolute inset-0 rounded-3xl border border-white/10 bg-white/5 backdrop-blur-md cursor-pointer overflow-hidden shadow-xl hover:border-white/20 transition-colors"
+                    style={{
+                      zIndex: 30 - depth
+                    }}
+                  >
+                    <img 
+                      src={card.image}
+                      alt={card.title1}
+                      className="absolute inset-0 w-full h-full object-cover"
+                    />
+                    <div className="relative z-10 h-full p-6 sm:p-8 pt-9 sm:pt-10 flex flex-col justify-start">
+                      <h3 className="text-3xl font-bold italic text-white leading-tight">{card.title1}</h3>
+                      <h3 className="text-3xl font-bold italic text-white leading-tight">{card.title2}</h3>
+                    </div>
+                    {depth === 0 && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCoffeeCardIndex((coffeeCardIndex + 1) % 2);
+                        }}
+                        className="absolute bottom-4 right-4 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-white/40 bg-white/35 text-xs font-bold text-black hover:bg-white/50 transition-colors z-20"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                        换一换
+                      </button>
+                    )}
+                  </motion.div>
+                );
+              })}
+          </div>
         )}
 
         {!isParticipating ? (
@@ -739,8 +819,8 @@ export default function Matches() {
           <div className="w-12 h-12 bg-white/10 backdrop-blur-sm rounded-2xl flex items-center justify-center mb-4 group-hover:bg-black transition-colors shadow-sm">
             <Heart className="w-6 h-6 text-black group-hover:text-white transition-colors" />
           </div>
-          <h4 className="text-lg font-extrabold text-black mb-1">爱神模式</h4>
-          <p className="text-sm text-gray-800 font-medium">撮合你的朋友：输入双方邮箱，他们将收到撮合提醒并看到彼此。</p>
+          <h4 className="text-lg font-extrabold text-black mb-1">CP嗑起来</h4>
+          <p className="text-sm text-gray-800 font-medium">看到他们特别配？撮合你的朋友，当赛博月老</p>
         </div>
       </div>
 
@@ -818,12 +898,12 @@ export default function Matches() {
             className="bg-white/20 backdrop-blur-2xl border border-white/40 rounded-3xl p-8 max-w-md w-full shadow-2xl"
           >
               <div className="flex justify-between items-center mb-6">
-                <h3 className="text-2xl font-extrabold text-black">爱神模式</h3>
+                <h3 className="text-2xl font-extrabold text-black">CP嗑起来</h3>
                 <button onClick={() => setShowCupidModal(false)} className="p-2 hover:bg-white/20 rounded-full transition-colors">
                   <X className="w-5 h-5 text-gray-800" />
                 </button>
               </div>
-              <p className="text-gray-800 mb-6 font-medium">觉得身边的两个朋友很合适？输入他们的邮箱，化身爱神为他们牵线搭桥！</p>
+              <p className="text-gray-800 mb-6 font-medium">觉得身边的两个朋友很合适？来当当赛博月老</p>
               
               <form onSubmit={handleCupid} className="space-y-4">
                 <div>
@@ -912,9 +992,9 @@ export default function Matches() {
             >
               <div className="relative p-8">
                 <h2 className="text-3xl font-bold italic text-white leading-tight">LZU Coffee联名</h2>
-                <h2 className="text-3xl font-bold italic text-white leading-tight mb-3">享“久久”咖啡</h2>
+                <h2 className="text-3xl font-bold italic text-white leading-tight mb-3">十分真诚，“八分”融在咖啡，两分带给春色</h2>
                 <p className="text-lg font-normal italic text-white leading-relaxed mt-3" style={{ textShadow: '0 1px 4px rgba(0, 0, 0, 0.9)' }}>
-                  匹配成功的lzuer可与你的匹配伴侣一起凭截图去lzu coffee享“久”折咖啡与附赠茶歇，外加活动哦！
+                  匹配成功的lzuer可与你的匹配伴侣一起凭证去lzu coffee享八折咖啡与附赠茶歇，外加活动哦！
                 </p>
               </div>
             </div>
@@ -929,7 +1009,7 @@ export default function Matches() {
         <div className="flex flex-col sm:flex-row justify-center items-center gap-0">
           <div className="flex-1 w-full flex flex-col items-center py-3 sm:py-0">
             <span className="text-3xl font-black text-black">{activeUsersCount}</span>
-            <span className="text-xs font-bold text-gray-800 uppercase tracking-widest mt-1">活跃用户</span>
+            <span className="text-xs font-bold text-gray-800 uppercase tracking-widest mt-1">参与匹配的同学</span>
           </div>
 
           {/* 移动端横线，桌面端竖线 */}

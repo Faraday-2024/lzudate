@@ -15,8 +15,8 @@ export default function Layout() {
   // 1) 把 ANNOUNCEMENT_KEY 改成新的唯一值（例如 feature_xxx_YYYYMMDD）。
   // 2) 把 ANNOUNCEMENT_CUTOFF 改成目标分界时间（只通知该时间之前注册的用户）。
   // 3) 在下方「Update Announcement」区块修改标题和文案。
-  const ANNOUNCEMENT_KEY = 'buddy_mbti_update_20260411';
-  const ANNOUNCEMENT_CUTOFF = new Date('2026-04-12T00:00:00+08:00');
+  const ANNOUNCEMENT_KEY = 'buddy_mbti_update_20260416';
+  const ANNOUNCEMENT_CUTOFF = new Date('2026-04-17T00:00:00+08:00');
 
   useEffect(() => {
     const checkProfile = async () => {
@@ -172,8 +172,7 @@ export default function Layout() {
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-xl font-extrabold text-black mb-3">功能更新</h3>
-            <p className="text-sm text-gray-800 leading-relaxed mb-1">1. 问卷新增：MBTI 选择项（已前置到基本信息）</p>
-            <p className="text-sm text-gray-800 leading-relaxed mb-1">2. 新增：找搭子四宫格展示 + 帖子评论功能</p>
+            <p className="text-sm text-gray-800 leading-relaxed mb-1">咖啡优惠券使用方法：双方都点击满意后，可在信箱查看对方信息，即可收到核销码</p>
             <p className="text-sm text-gray-700 leading-relaxed">点击卡片周围任意位置即可关闭。</p>
           </motion.div>
         </div>
