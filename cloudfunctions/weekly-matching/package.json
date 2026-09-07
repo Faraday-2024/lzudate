@@ -1,0 +1,10 @@
+{
+  "name": "weekly-matching",
+  "version": "1.0.0",
+  "description": "Scheduled cloud function for weekly user matching with GLM-powered AI reasoning",
+  "main": "index.js",
+  "dependencies": {
+    "node-fetch": "^2.7.0",
+    "@cloudbase/node-sdk": "^2.0.0"
+  }
+}

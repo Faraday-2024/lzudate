@@ -1,0 +1,9 @@
+{
+  "name": "glm-proxy",
+  "version": "1.0.0",
+  "description": "Cloud function to proxy GLM AI API calls",
+  "main": "index.js",
+  "dependencies": {
+    "node-fetch": "^2.7.0"
+  }
+}
