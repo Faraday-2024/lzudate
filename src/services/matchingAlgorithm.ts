@@ -175,13 +175,11 @@ export async function runWeeklyMatching() {
 用户A:
 昵称: ${u1Data.name}
 简介: ${u1Data.bio || '未知'}
-AI总结画像: ${u1Data.aiSummary || '未知'}
 问卷信息: ${JSON.stringify(u1Data.questionnaire || {})}
 
 用户B:
 昵称: ${u2Data.name}
 简介: ${u2Data.bio || '未知'}
-AI总结画像: ${u2Data.aiSummary || '未知'}
 问卷信息: ${JSON.stringify(u2Data.questionnaire || {})}`;
           
           const responseText = await callGLM([{ role: 'user', content: prompt }]);

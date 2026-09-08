@@ -8,7 +8,8 @@ type BuddyCategory = '游戏搭子' | '旅游搭子' | '吃饭搭子' | '周边�
 interface BuddyPost {
   id: string;
   uid: string;
-  category: BuddyCategory;
+  category: BuddyCategory | '帖子';
+  source: 'buddy' | 'experience';
   title: string;
   content: string;
   createdAt: string;
@@ -62,10 +63,12 @@ function formatTime(iso: string): string {
 
 export default function Buddies() {
   const [posts, setPosts] = useState<BuddyPost[]>([]);
+  const [experiencePosts, setExperiencePosts] = useState<BuddyPost[]>([]);
   const [comments, setComments] = useState<BuddyComment[]>([]);
   const [loading, setLoading] = useState(true);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [postMode, setPostMode] = useState<'buddy' | 'experience'>('experience');
   const [selectedPost, setSelectedPost] = useState<BuddyPost | null>(null);
   const [publishing, setPublishing] = useState(false);
   const [publishingComment, setPublishingComment] = useState(false);
@@ -98,18 +101,12 @@ export default function Buddies() {
     }
 
     try {
-      const res = await db.collection('buddy_posts').orderBy('createdAt', 'desc').limit(80).get();
-      const raw = res.data || [];
-      const now = Date.now();
-      const threeDaysMs = 5 * 24 * 60 * 60 * 1000;
-
-      const valid = raw.filter((d: any) => {
-        const expiresAt = new Date(d.expiresAt).getTime();
-        if (!Number.isNaN(expiresAt)) return expiresAt > now;
-
-        const createdAt = new Date(d.createdAt).getTime();
-        return !Number.isNaN(createdAt) && createdAt + threeDaysMs > now;
-      });
+      const [buddyRes, experienceRes] = await Promise.all([
+        db.collection('buddy_posts').orderBy('createdAt', 'desc').limit(80).get(),
+        db.collection('experience_posts').orderBy('createdAt', 'desc').limit(80).get()
+      ]);
+      const raw = buddyRes.data || [];
+      const valid = raw;
 
       const userCache: Record<string, any> = {};
       const hydrated: BuddyPost[] = [];
@@ -132,6 +129,7 @@ export default function Buddies() {
           id: postId,
           uid,
           category: doc.category,
+          source: 'buddy',
           title: doc.title,
           content: doc.content,
           createdAt: doc.createdAt,
@@ -145,6 +143,35 @@ export default function Buddies() {
       }
 
       setPosts(hydrated);
+
+      const experienceHydrated: BuddyPost[] = [];
+      for (const doc of experienceRes.data || []) {
+        const uid = doc.uid || doc.authorId;
+        if (!uid) continue;
+        const postId = normalizeId(doc._id);
+        if (!postId) continue;
+        if (!userCache[uid]) {
+          const userRes = await db.collection('users').doc(uid).get();
+          userCache[uid] = userRes.data && userRes.data.length > 0 ? userRes.data[0] : null;
+        }
+        const user = userCache[uid];
+        experienceHydrated.push({
+          id: postId,
+          uid,
+          category: '帖子',
+          source: 'experience',
+          title: doc.title || doc.name || '',
+          content: doc.content || doc.description || '',
+          createdAt: doc.createdAt || new Date().toISOString(),
+          expiresAt: doc.expiresAt || '',
+          name: user?.name || `同学${uid.slice(-4)}`,
+          avatarUrl: user?.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${uid}`,
+          grade: user?.questionnaire?.grade,
+          college: user?.questionnaire?.college,
+          wechat: user?.questionnaire?.wechat
+        });
+      }
+      setExperiencePosts(experienceHydrated);
     } catch (err) {
       console.error('Failed to fetch buddy posts:', err);
       setError('加载失败，请稍后重试。');
@@ -157,11 +184,12 @@ export default function Buddies() {
     fetchPosts();
   }, []);
 
-  const fetchComments = async (postId: string) => {
+  const fetchComments = async (postId: string, source: 'buddy' | 'experience') => {
     setCommentsLoading(true);
     setCommentError('');
     try {
-      const res = await db.collection('buddy_comments').where({ postId }).limit(100).get();
+      const commentCollection = source === 'experience' ? 'experience_comments' : 'buddy_comments';
+      const res = await db.collection(commentCollection).where({ postId }).limit(100).get();
       const raw = res.data || [];
       const userCache: Record<string, any> = {};
       const hydrated: BuddyComment[] = [];
@@ -205,7 +233,7 @@ export default function Buddies() {
   const openPostDetail = async (post: BuddyPost) => {
     setSelectedPost(post);
     setCommentInput('');
-    await fetchComments(post.id);
+    await fetchComments(post.id, post.source);
   };
 
   const getCategoryPosts = (category: BuddyCategory) => {
@@ -281,11 +309,13 @@ export default function Buddies() {
         }
       }
 
-      const addRes = await db.collection('buddy_comments').add(commentData);
+      const commentCollection = selectedPost.source === 'experience' ? 'experience_comments' : 'buddy_comments';
+      const notificationCollection = selectedPost.source === 'experience' ? 'experience_notifications' : 'buddy_notifications';
+      const addRes = await db.collection(commentCollection).add(commentData);
 
       // 创建通知给帖子作者（如果评论者不是帖子作者）
       if (selectedPost.uid !== uid) {
-        await db.collection('buddy_notifications').add({
+        await db.collection(notificationCollection).add({
           userId: selectedPost.uid,
           type: 'post_comment',
           postId: selectedPost.id,
@@ -302,7 +332,7 @@ export default function Buddies() {
       if (replyingToCommentId) {
         const parentComment = comments.find(c => c.id === replyingToCommentId);
         if (parentComment && parentComment.uid !== uid) {
-          await db.collection('buddy_notifications').add({
+          await db.collection(notificationCollection).add({
             userId: parentComment.uid,
             type: 'comment_reply',
             postId: selectedPost.id,
@@ -324,7 +354,7 @@ export default function Buddies() {
         uid,
         content,
         createdAt,
-        name: auth.currentUser?.customUserInfo?.name || `同学${uid.slice(-4)}`,
+        name: commentAuthorName,
         avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${uid}`,
         parentCommentId: replyingToCommentId,
         parentCommentAuthorName: parentComment?.name
@@ -339,7 +369,7 @@ export default function Buddies() {
       setReplyingToCommentId(null);
 
       // Refresh from server for authoritative data, but do not break UI if query is temporarily inconsistent.
-      fetchComments(selectedPost.id).catch(() => undefined);
+      fetchComments(selectedPost.id, selectedPost.source).catch(() => undefined);
     } catch (err) {
       console.error('Failed to publish comment:', err);
       const msg = err instanceof Error ? err.message : String(err);
@@ -374,20 +404,19 @@ export default function Buddies() {
     setPublishing(true);
     try {
       const now = new Date();
-      const expires = new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000);
 
-      await db.collection('buddy_posts').add({
+      const collectionName = postMode === 'experience' ? 'experience_posts' : 'buddy_posts';
+      await db.collection(collectionName).add({
         uid,
-        category: form.category,
+        ...(postMode === 'buddy' ? { category: form.category } : {}),
         title,
         content,
-        createdAt: now.toISOString(),
-        expiresAt: expires.toISOString()
+        createdAt: now.toISOString()
       });
 
       setShowCreateModal(false);
       setForm({ category: '游戏搭子', title: '', content: '' });
-      setToast('发布成功，内容将在 5 天后自动过期。');
+      setToast(postMode === 'experience' ? '帖子发布成功。' : '发布成功。');
       setTimeout(() => setToast(''), 2800);
       await fetchPosts();
     } catch (err) {
@@ -409,11 +438,6 @@ export default function Buddies() {
         {loading ? (
           <div className="flex flex-col justify-center items-center h-[40vh]">
             <div className="w-8 h-8 border-4 border-black border-t-transparent rounded-full animate-spin" />
-          </div>
-        ) : posts.length === 0 ? (
-          <div className="bg-white/5 backdrop-blur-md rounded-3xl border border-white/10 p-8 text-center shadow-xl">
-            <h3 className="text-2xl font-extrabold text-black mb-2">还没有新的搭子帖</h3>
-            <p className="text-gray-800 font-medium">先发一条吧，5 天内都能被看到。</p>
           </div>
         ) : (
           <>
@@ -509,6 +533,45 @@ export default function Buddies() {
                 );
               })}
             </div>
+            <div className="mt-6">
+              <div className="flex items-end justify-between gap-4 mb-4">
+                <div>
+                  <h3 className="text-2xl font-extrabold text-black">帖子</h3>
+                  <p className="text-sm text-gray-700 font-medium mt-1">分享经验、提出问题，和 lzuer 交流。</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setPostMode('experience');
+                    setError('');
+                    setShowCreateModal(true);
+                  }}
+                  className="px-4 py-2.5 bg-black text-white rounded-xl font-bold inline-flex items-center gap-2 hover:bg-gray-800 transition-colors"
+                >
+                  <Plus className="w-4 h-4" /> 新建帖子
+                </button>
+              </div>
+              {experiencePosts.length === 0 ? (
+                <div className="bg-white/20 border border-white/25 rounded-2xl p-6 text-center text-gray-700 font-medium">还没有帖子，发第一篇吧。</div>
+              ) : (
+                <div className="space-y-3">
+                  {experiencePosts.map((post) => (
+                    <button
+                      type="button"
+                      key={post.id}
+                      onClick={() => openPostDetail(post)}
+                      className="w-full text-left bg-white/25 border border-white/30 rounded-2xl p-5 hover:bg-white/40 transition-colors"
+                    >
+                      <div className="flex items-center justify-between gap-3 mb-2">
+                        <h4 className="font-extrabold text-black truncate">{post.title}</h4>
+                        <span className="text-xs text-gray-600 font-medium shrink-0">{formatTime(post.createdAt)}</span>
+                      </div>
+                      <p className="text-sm text-gray-800 line-clamp-2">{post.content}</p>
+                      <p className="text-xs text-gray-600 font-medium mt-3">{post.name} · 点击查看评论</p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </>
         )}
 
@@ -530,6 +593,7 @@ export default function Buddies() {
         <button
           onClick={() => {
             setError('');
+            setPostMode('buddy');
             setShowCreateModal(true);
           }}
           className="w-full py-4 rounded-2xl bg-white/15 backdrop-blur-2xl border border-white/30 text-black font-extrabold shadow-xl hover:bg-white/25 transition-colors inline-flex items-center justify-center gap-2"
@@ -549,7 +613,7 @@ export default function Buddies() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-center mb-5">
-              <h3 className="text-2xl font-extrabold text-black">发布找搭子</h3>
+              <h3 className="text-2xl font-extrabold text-black">{postMode === 'experience' ? '新建帖子' : '发布找搭子'}</h3>
               <button onClick={() => setShowCreateModal(false)} className="p-2 hover:bg-white/20 rounded-full transition-colors">
                 <X className="w-5 h-5 text-gray-800" />
               </button>
@@ -557,8 +621,8 @@ export default function Buddies() {
 
             <form onSubmit={handlePublish} className="space-y-4">
               <div>
-                <label className="block text-sm font-bold text-gray-800 mb-2">类型</label>
-                <div className="grid grid-cols-2 gap-2">
+                {postMode === 'buddy' && <label className="block text-sm font-bold text-gray-800 mb-2">类型</label>}
+                {postMode === 'buddy' && <div className="grid grid-cols-2 gap-2">
                   {CATEGORIES.map((cat) => (
                     <button
                       type="button"
@@ -573,7 +637,7 @@ export default function Buddies() {
                       {cat.label}
                     </button>
                   ))}
-                </div>
+                </div>}
               </div>
 
               <div>
@@ -609,7 +673,7 @@ export default function Buddies() {
                 disabled={publishing}
                 className="w-full py-3.5 bg-black text-white rounded-2xl font-bold hover:bg-gray-800 transition-colors disabled:opacity-60"
               >
-                {publishing ? '发布中...' : '确认发布（保留 5 天）'}
+                  {publishing ? '发布中...' : '发布帖子（保留 5 天）'}
               </button>
             </form>
           </div>

@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { db, auth } from '../cloudbase';
 import { motion, AnimatePresence } from 'motion/react';
-import MatchAIChat from './MatchAIChat';
-import AIChatOnboarding from './AIChatOnboarding';
 import { useNavigate } from 'react-router-dom';
-import { MessageCircle, Heart, Target, Sparkles, Check, X, Zap, RefreshCw } from 'lucide-react';
+import { Sparkles, Heart, Check, X, Zap, RefreshCw } from 'lucide-react';
 
 interface MatchProfile {
   uid: string;
@@ -13,7 +11,6 @@ interface MatchProfile {
   bio: string;
   email: string;
   displayProfile?: string;
-  aiSummary?: string;
   isDropMatch?: boolean;
   matchDocId?: string;
   college?: string;
@@ -57,12 +54,8 @@ export default function Matches() {
   const [matches, setMatches] = useState<MatchProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string>('');
-  const [activeChatMatch, setActiveChatMatch] = useState<MatchProfile | null>(null);
   const [isParticipating, setIsParticipating] = useState(false);
   const [archiving, setArchiving] = useState(false);
-  const [showShootModal, setShowShootModal] = useState(false);
-  const [showCupidModal, setShowCupidModal] = useState(false);
-  const [showTrainModal, setShowTrainModal] = useState(false);
   const [showFailedMatchScreen, setShowFailedMatchScreen] = useState(false);
   const [showCoffeeModal, setShowCoffeeModal] = useState(false);
   const [coffeeCardIndex, setCoffeeCardIndex] = useState(0);
@@ -100,94 +93,6 @@ export default function Matches() {
     };
     fetchStats();
   }, []);
-
-  const handleTrainAI = async (summary: string) => {
-    const loginState = await auth.getLoginState();
-    if (!loginState) return;
-    try {
-      const uid = auth.currentUser?.uid;
-      if (!uid) return;
-      await db.collection('users').doc(uid).update({
-        aiSummary: summary
-      });
-      setTimeout(() => {
-        setShowTrainModal(false);
-      }, 2000);
-    } catch (err) {
-      console.error("Error updating AI summary:", err);
-    }
-  };
-  const [shootEmail, setShootEmail] = useState('');
-  const [shootMessageText, setShootMessageText] = useState('');
-  const [cupidEmail1, setCupidEmail1] = useState('');
-  const [cupidEmail2, setCupidEmail2] = useState('');
-  const [cupidMessageText, setCupidMessageText] = useState('');
-  const [modeMessage, setModeMessage] = useState({ text: '', type: '' });
-
-  const handleShoot = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const loginState = await auth.getLoginState();
-    if (!loginState || !shootEmail) return;
-    try {
-      const uid = auth.currentUser?.uid;
-      // Note: CloudBase auth doesn't expose email directly on currentUser in all cases,
-      // you might need to fetch it from the user document if it's not available.
-      // Assuming it's stored in the users collection.
-      const userRes = await db.collection('users').doc(uid).get();
-      const userEmail = userRes.data && userRes.data.length > 0 ? (userRes.data[0].email || '') : '';
-
-      if (!userEmail) {
-        setModeMessage({ text: '发送失败: 请先在个人档案中设置你的校园邮箱。', type: 'error' });
-        return;
-      }
-
-      await db.collection('drops').add({
-        fromUserId: uid,
-        fromEmail: userEmail,
-        toEmail: shootEmail.toLowerCase(),
-        message: shootMessageText,
-        createdAt: new Date().toISOString(),
-        type: 'shoot'
-      });
-      setModeMessage({ text: '暗恋已发送！如果TA也填了你，你们就会匹配成功。', type: 'success' });
-      setTimeout(() => {
-        setShowShootModal(false);
-        setShootEmail('');
-        setShootMessageText('');
-        setModeMessage({ text: '', type: '' });
-      }, 3000);
-    } catch (err: any) {
-      setModeMessage({ text: '发送失败: ' + err.message, type: 'error' });
-      console.error(err);
-    }
-  };
-
-  const handleCupid = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const loginState = await auth.getLoginState();
-    if (!loginState || !cupidEmail1 || !cupidEmail2) return;
-    try {
-      const uid = auth.currentUser?.uid;
-      await db.collection('cupid_matches').add({
-        cupidUserId: uid,
-        email1: cupidEmail1.toLowerCase(),
-        email2: cupidEmail2.toLowerCase(),
-        message: cupidMessageText,
-        createdAt: new Date().toISOString()
-      });
-      setModeMessage({ text: '撮合已发送！他们将收到提醒。', type: 'success' });
-      setTimeout(() => {
-        setShowCupidModal(false);
-        setCupidEmail1('');
-        setCupidEmail2('');
-        setCupidMessageText('');
-        setModeMessage({ text: '', type: '' });
-      }, 3000);
-    } catch (err: any) {
-      setModeMessage({ text: '发送失败: ' + err.message, type: 'error' });
-      console.error(err);
-    }
-  };
 
   const fetchData = async () => {
     setLoadError('');
@@ -262,7 +167,6 @@ export default function Matches() {
               bio: userData.bio,
               email: userData.email,
               displayProfile: userData.displayProfile,
-              aiSummary: userData.aiSummary,
               college: userData.questionnaire?.college,
               grade: userData.questionnaire?.grade,
               gender: userData.questionnaire?.gender,
@@ -304,7 +208,6 @@ export default function Matches() {
                     bio: userData.bio,
                     email: userData.email,
                     displayProfile: userData.displayProfile,
-                    aiSummary: userData.aiSummary,
                     college: userData.questionnaire?.college,
                     grade: userData.questionnaire?.grade,
                     gender: userData.questionnaire?.gender,
@@ -321,7 +224,6 @@ export default function Matches() {
           }
       }
 
-      // 3. Fetch cupid matches is moved to Mailbox.tsx
       
       setMatches(matchProfiles);
       const joinedThisRound = joinedBeforeThisRoundRelease(participationUpdatedAt, releaseTime);
@@ -362,7 +264,6 @@ export default function Matches() {
                       avatarUrl: userData.avatarUrl,
                       bio: userData.bio,
                       displayProfile: userData.displayProfile,
-                      aiSummary: userData.aiSummary,
                     };
                   }
                   return m;
@@ -381,7 +282,6 @@ export default function Matches() {
     };
     
     setupWatchers();
-
     return () => {
       // CloudBase watchers need to be closed
       watchers.forEach(watcher => {
@@ -556,7 +456,7 @@ export default function Matches() {
         {isParticipating && (
           <div className="relative h-56 sm:h-64 mb-8">
             {[
-              { idx: coffeeCardIndex, title1: '蜜雪甜意', title2: '雪王加入中', image: '/雪王.png' },
+              { idx: coffeeCardIndex, title1: '雪王的奶茶还没想好怎么发', title2: '', image: '/雪王.png' },
               { idx: (coffeeCardIndex + 1) % 2, title1: 'LZU Coffee联名', title2: '"八分"咖啡，二分春色', image: '/lzucoffee.jpg' }
             ]
               .sort((a, b) => a.idx - b.idx)
@@ -656,15 +556,6 @@ export default function Matches() {
                 <span className="text-base text-gray-800 font-bold uppercase tracking-widest mb-2">距离下次匹配还有</span>
                 <span className="text-4xl font-black text-black tabular-nums">{getNextMatchTime()}</span>
               </div>
-              <div className="flex flex-col items-center gap-4">
-                <button
-                  onClick={() => setShowTrainModal(true)}
-                  className="px-6 py-3 bg-white/10 hover:bg-white/20 backdrop-blur-sm text-black rounded-xl font-bold transition-colors inline-flex items-center gap-2 text-sm border border-white/10 shadow-sm"
-                >
-                  <MessageCircle className="w-4 h-4" />
-                  不妨和你的AI分身聊聊天吧
-                </button>
-              </div>
             </div>
           )
         ) : (
@@ -756,19 +647,6 @@ export default function Matches() {
                         </div>
                       )}
                       
-                      {match.aiSummary ? (
-                        <button
-                          onClick={() => setActiveChatMatch(match)}
-                          className="w-full py-3 bg-white/10 hover:bg-white/20 backdrop-blur-sm text-black rounded-xl font-bold transition-colors flex items-center justify-center gap-2 text-sm border border-white/10 shadow-sm"
-                        >
-                          <MessageCircle className="w-4 h-4" />
-                          不妨和TA的AI分身聊聊天吧
-                        </button>
-                      ) : (
-                        <div className="w-full py-3 bg-white/5 backdrop-blur-sm text-gray-800 rounded-xl font-bold text-center text-sm border border-white/10">
-                          对方未建立AI分身
-                        </div>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -799,32 +677,7 @@ export default function Matches() {
         </div>
       )}
 
-      {/* Bottom Modes */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 relative z-10">
-        <div 
-          onClick={() => setShowShootModal(true)}
-          className="bg-white/5 backdrop-blur-md p-6 rounded-3xl border border-white/10 shadow-xl hover:border-black transition-colors cursor-pointer group"
-        >
-          <div className="w-12 h-12 bg-white/10 backdrop-blur-sm rounded-2xl flex items-center justify-center mb-4 group-hover:bg-black transition-colors shadow-sm">
-            <Target className="w-6 h-6 text-black group-hover:text-white transition-colors" />
-          </div>
-          <h4 className="text-lg font-extrabold text-black mb-1">Shoot your shot</h4>
-          <p className="text-sm text-gray-800 font-medium">暗恋模式：输入TA的邮箱，如果TA也填了你，双方即刻揭晓。</p>
-        </div>
-        
-        <div 
-          onClick={() => setShowCupidModal(true)}
-          className="bg-white/5 backdrop-blur-md p-6 rounded-3xl border border-white/10 shadow-xl hover:border-black transition-colors cursor-pointer group"
-        >
-          <div className="w-12 h-12 bg-white/10 backdrop-blur-sm rounded-2xl flex items-center justify-center mb-4 group-hover:bg-black transition-colors shadow-sm">
-            <Heart className="w-6 h-6 text-black group-hover:text-white transition-colors" />
-          </div>
-          <h4 className="text-lg font-extrabold text-black mb-1">CP嗑起来</h4>
-          <p className="text-sm text-gray-800 font-medium">看到他们特别配？撮合你的朋友，当赛博月老</p>
-        </div>
-      </div>
-
-      <div className="mt-4 mb-8">
+      <div className="mt-4 mb-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div
           onClick={() => navigate('/buddies')}
           className="bg-white/5 backdrop-blur-md p-6 rounded-3xl border border-white/10 shadow-xl hover:border-black transition-colors cursor-pointer group"
@@ -832,147 +685,20 @@ export default function Matches() {
           <div className="w-12 h-12 bg-white/10 backdrop-blur-sm rounded-2xl flex items-center justify-center mb-4 group-hover:bg-black transition-colors shadow-sm">
             <Zap className="w-6 h-6 text-black group-hover:text-white transition-colors" />
           </div>
-          <h4 className="text-lg font-extrabold text-black mb-1">找搭子</h4>
+          <h4 className="text-lg font-extrabold text-black mb-1">帖子&搭子</h4>
           <p className="text-sm text-gray-800 font-medium">游戏搭子、旅游搭子、吃饭搭子、周边玩搭子。点我进入发布和浏览。</p>
         </div>
-      </div>
-
-      {showShootModal && (
-        <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/20"
-          onClick={() => setShowShootModal(false)}
+        <div
+          onClick={() => navigate('/tribes')}
+          className="bg-white/5 backdrop-blur-md p-6 rounded-3xl border border-white/10 shadow-xl hover:border-black transition-colors cursor-pointer group"
         >
-          <div 
-            onClick={e => e.stopPropagation()}
-            className="bg-white/20 backdrop-blur-2xl border border-white/40 rounded-3xl p-8 max-w-md w-full shadow-2xl"
-          >
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-2xl font-extrabold text-black">Shoot your shot</h3>
-                <button onClick={() => setShowShootModal(false)} className="p-2 hover:bg-white/20 rounded-full transition-colors">
-                  <X className="w-5 h-5 text-gray-800" />
-                </button>
-              </div>
-              <p className="text-gray-800 mb-6 font-medium">输入你暗恋对象的校园邮箱。如果TA也在这里输入了你的邮箱，你们就会立刻匹配成功！</p>
-              
-              <form onSubmit={handleShoot} className="space-y-4">
-                <div>
-                  <input
-                    type="email"
-                    required
-                    value={shootEmail}
-                    onChange={(e) => setShootEmail(e.target.value)}
-                    placeholder="TA的校园邮箱 (@lzu.edu.cn)"
-                    className="w-full px-5 py-4 bg-white/20 border border-white/30 rounded-2xl focus:outline-none focus:border-black transition-colors text-black font-medium placeholder:text-gray-600"
-                  />
-                </div>
-                <div>
-                  <textarea
-                    required
-                    value={shootMessageText}
-                    onChange={(e) => setShootMessageText(e.target.value)}
-                    placeholder="留下一句话..."
-                    rows={3}
-                    className="w-full px-5 py-4 bg-white/20 border border-white/30 rounded-2xl focus:outline-none focus:border-black transition-colors text-black font-medium placeholder:text-gray-600 resize-none"
-                  />
-                </div>
-                {modeMessage.text && (
-                  <div className={`p-3 rounded-xl text-sm font-bold ${modeMessage.type === 'success' ? 'bg-green-500/20 text-green-900 border border-green-500/30' : 'bg-red-500/20 text-red-900 border border-red-500/30'}`}>
-                    {modeMessage.text}
-                  </div>
-                )}
-                <button type="submit" className="w-full py-4 bg-black text-white rounded-2xl font-bold hover:bg-gray-800 transition-colors shadow-lg">
-                  发送暗恋
-                </button>
-              </form>
-            </div>
+          <div className="w-12 h-12 bg-white/10 backdrop-blur-sm rounded-2xl flex items-center justify-center mb-4 group-hover:bg-black transition-colors shadow-sm">
+            <Zap className="w-6 h-6 text-black group-hover:text-white transition-colors" />
           </div>
-        )}
-
-      {showCupidModal && (
-        <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/20"
-          onClick={() => setShowCupidModal(false)}
-        >
-          <div 
-            onClick={e => e.stopPropagation()}
-            className="bg-white/20 backdrop-blur-2xl border border-white/40 rounded-3xl p-8 max-w-md w-full shadow-2xl"
-          >
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-2xl font-extrabold text-black">CP嗑起来</h3>
-                <button onClick={() => setShowCupidModal(false)} className="p-2 hover:bg-white/20 rounded-full transition-colors">
-                  <X className="w-5 h-5 text-gray-800" />
-                </button>
-              </div>
-              <p className="text-gray-800 mb-6 font-medium">觉得身边的两个朋友很合适？来当当赛博月老</p>
-              
-              <form onSubmit={handleCupid} className="space-y-4">
-                <div>
-                  <input
-                    type="email"
-                    required
-                    value={cupidEmail1}
-                    onChange={(e) => setCupidEmail1(e.target.value)}
-                    placeholder="朋友A的校园邮箱"
-                    className="w-full px-5 py-4 bg-white/20 border border-white/30 rounded-2xl focus:outline-none focus:border-black transition-colors text-black font-medium placeholder:text-gray-600"
-                  />
-                </div>
-                <div>
-                  <input
-                    type="email"
-                    required
-                    value={cupidEmail2}
-                    onChange={(e) => setCupidEmail2(e.target.value)}
-                    placeholder="朋友B的校园邮箱"
-                    className="w-full px-5 py-4 bg-white/20 border border-white/30 rounded-2xl focus:outline-none focus:border-black transition-colors text-black font-medium placeholder:text-gray-600"
-                  />
-                </div>
-                <div>
-                  <textarea
-                    required
-                    value={cupidMessageText}
-                    onChange={(e) => setCupidMessageText(e.target.value)}
-                    placeholder="留下一句话..."
-                    rows={3}
-                    className="w-full px-5 py-4 bg-white/20 border border-white/30 rounded-2xl focus:outline-none focus:border-black transition-colors text-black font-medium placeholder:text-gray-600 resize-none"
-                  />
-                </div>
-                {modeMessage.text && (
-                  <div className={`p-3 rounded-xl text-sm font-bold ${modeMessage.type === 'success' ? 'bg-green-500/20 text-green-900 border border-green-500/30' : 'bg-red-500/20 text-red-900 border border-red-500/30'}`}>
-                    {modeMessage.text}
-                  </div>
-                )}
-                <button type="submit" className="w-full py-4 bg-black text-white rounded-2xl font-bold hover:bg-gray-800 transition-colors shadow-lg">
-                  发送撮合
-                </button>
-              </form>
-            </div>
-          </div>
-        )}
-
-      {showTrainModal && (
-        <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/20"
-          onClick={() => setShowTrainModal(false)}
-        >
-          <div 
-            onClick={e => e.stopPropagation()}
-            className="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col h-[80vh] max-h-[800px]"
-          >
-            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-              <div>
-                <h3 className="text-lg font-bold text-black">训练你的AI分身</h3>
-                <p className="text-xs text-gray-500 font-medium">多聊天能让它更懂你</p>
-              </div>
-              <button onClick={() => setShowTrainModal(false)} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
-                <X className="w-5 h-5 text-gray-500" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto">
-              <AIChatOnboarding onSummaryGenerated={handleTrainAI} />
-            </div>
-          </div>
+          <h4 className="text-lg font-extrabold text-black mb-1">lzuer部落</h4>
+          <p className="text-sm text-gray-800 font-medium">加入同频部落，随机认识一位新朋友。</p>
         </div>
-      )}
+      </div>
 
       {showCoffeeModal && (
         <div 
@@ -1009,7 +735,7 @@ export default function Matches() {
         <div className="flex flex-col sm:flex-row justify-center items-center gap-0">
           <div className="flex-1 w-full flex flex-col items-center py-3 sm:py-0">
             <span className="text-3xl font-black text-black">{activeUsersCount}</span>
-            <span className="text-xs font-bold text-gray-800 uppercase tracking-widest mt-1">参与匹配的同学</span>
+            <span className="text-xs font-bold text-gray-800 uppercase tracking-widest mt-1">参与本轮匹配的同学</span>
           </div>
 
           {/* 移动端横线，桌面端竖线 */}
@@ -1017,7 +743,7 @@ export default function Matches() {
 
           <div className="flex-1 w-full flex flex-col items-center py-3 sm:py-0">
             <span className="text-3xl font-black text-black">{matchedPairsCount}</span>
-            <span className="text-xs font-bold text-gray-800 uppercase tracking-widest mt-1">成功匹配对数</span>
+            <span className="text-xs font-bold text-gray-800 uppercase tracking-widest mt-1">累计匹配成功的对数</span>
           </div>
 
           <div className="w-24 h-px sm:w-px sm:h-12 bg-gray-500 sm:mx-6"></div>
@@ -1064,15 +790,6 @@ export default function Matches() {
       </div>
         
       <AnimatePresence>
-        {activeChatMatch && (
-          <MatchAIChat
-            matchUid={activeChatMatch.uid}
-            matchName={activeChatMatch.name}
-            displayProfile={activeChatMatch.displayProfile || activeChatMatch.bio || ''}
-            aiSummary={activeChatMatch.aiSummary || ''}
-            onClose={() => setActiveChatMatch(null)}
-          />
-        )}
       </AnimatePresence>
       </div>
     </div>

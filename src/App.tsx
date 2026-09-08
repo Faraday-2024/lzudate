@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { auth } from './cloudbase';
 
 import Landing from './components/Landing';
@@ -10,6 +10,8 @@ import Matches from './components/Matches';
 import Buddies from './components/Buddies';
 import Profile from './components/Profile';
 import Mailbox from './components/Mailbox';
+import Tribes from './components/Tribes';
+import Bounties from './components/Bounties';
 
 export default function App() {
   const [user, setUser] = useState<any>(null);
@@ -50,7 +52,7 @@ export default function App() {
   }
 
   return (
-    <BrowserRouter>
+    <HashRouter>
       <Routes>
         <Route path="/" element={user ? <Navigate to="/matches" /> : <Landing />} />
         <Route path="/login" element={user ? <Navigate to="/matches" /> : <Auth />} />
@@ -59,10 +61,12 @@ export default function App() {
         <Route element={user ? <Layout /> : <Navigate to="/login" />}>
           <Route path="/matches" element={<Matches />} />
           <Route path="/buddies" element={<Buddies />} />
+          <Route path="/tribes" element={<Tribes />} />
+          <Route path="/bounties" element={<Bounties />} />
           <Route path="/mailbox" element={<Mailbox />} />
           <Route path="/profile" element={<Profile />} />
         </Route>
       </Routes>
-    </BrowserRouter>
+    </HashRouter>
   );
 }
