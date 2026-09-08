@@ -3,7 +3,6 @@ import { auth, db, appInstance } from '../cloudbase';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Star } from 'lucide-react';
-import AIChatOnboarding from './AIChatOnboarding';
 import { callAIEmbedding } from '../services/aiService';
 
 const COLLEGES = [
@@ -205,7 +204,7 @@ const MODULES = [
     title: '兴趣爱好',
     subtitle: '不限类别，选出 2-5 个你最核心的爱好。共同的爱好是最好的破冰话题。',
     questions: [
-      { id: 'coreHobbies', type: 'multi-tag', label: '选出你的核心兴趣爱好', categories: HOBBIES, minTags: 2, maxTags: 5 },
+      { id: 'coreHobbies', type: 'multi-tag', label: '选出你的核心兴趣爱好', categories: HOBBIES, minTags: 2 },
       { id: 'similarHobbies', type: 'slider', label: '希望伴侣和自己有相似的兴趣爱好？', leftLabel: '更喜欢互补', rightLabel: '必须高度重合', min: 1, max: 7, canMarkImportant: true }
     ]
   },
@@ -224,13 +223,12 @@ const MODULES = [
     ]
   },
   {
-    id: 'ai-persona',
-    title: '你的专属AI分身',
-    subtitle: '写一段展示面，然后和AI聊几句，让它学习你的聊天风格。',
+    id: 'contact',
+    title: '个人展示与联系方式',
+    subtitle: '留下真实的联系方式，让匹配成功的人能够联系到你。',
     questions: [
       { id: 'displayProfile', type: 'textarea', label: '你的展示面', hint: '这是匹配成功后，对方会看到的关于你的介绍。请把你最想让TA看到的一面写出来，吸引TA的注意吧！' },
-      { id: 'aiChat', type: 'ai-chat', label: '和AI聊聊', hint: '与AI聊天能帮助我们更好地了解你，从而为你匹配更合适的对象。同时，匹配成功后，对方可以先与你的AI分身聊天，实现零门槛破冰，看看你们是否合拍！' },
-      { id: 'wechat', type: 'input', label: '您愿意向TA展示您的微信号吗（选填）', hint: '这完全取决于您', optional: true }
+      { id: 'wechat', type: 'input', label: '你的微信号orQQ号', hint: '这是TA能够联系你的方式' }
     ]
   }
 ];
@@ -244,7 +242,7 @@ const INITIAL_FORM_DATA = {
   smoking: { self: 4, partner: 4 }, drinking: { self: 4, partner: 4 }, messageAnxiety: 4, ritualSense: 4, oppositeSexFriend: 4, interactionMode: 4, carePreference: 4, relationshipPace: 4, relationshipGoal: '', houseworkPreference: '', dateStyle: '', datePlanning: '', datePayment: '', intimacyAcceptance: '', meetFrequency: '', showAffection: 4, criticismResponse: 4, dependency: 4, sameGenderFriendAcceptance: '', familyInfluence: '', timeAllocation: '', myRiskBehaviors: [], dealBreakers: [],
   coreHobbies: [], similarHobbies: 4,
   appearanceType: { self: 4, partner: 4 }, partnerAppearanceEffort: 4, corePriorities: [], selfTraits: [], partnerTraits: [], appearanceWeight: 4, springActivity: '',
-  displayProfile: '', aiSummary: '', wechat: ''
+  displayProfile: '', wechat: ''
 };
 
 const ALL_ITEMS = MODULES.flatMap((m, mIndex) => [
@@ -357,7 +355,7 @@ export default function Onboarding() {
 
     let embedding: number[] = [];
     try {
-      const textToEmbed = `Bio: ${formData.bio || ''}. Answers: ${JSON.stringify(formData)}. AI Summary: ${formData.aiSummary || ''}`;
+      const textToEmbed = `Bio: ${formData.bio || ''}. Answers: ${JSON.stringify(formData)}`;
       embedding = await callAIEmbedding({
         model: 'embedding-3',
         input: textToEmbed
@@ -376,7 +374,6 @@ export default function Onboarding() {
         bio: formData.bio,
         avatarUrl: formData.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${formData.name}`,
         displayProfile: formData.displayProfile || '',
-        aiSummary: formData.aiSummary || '',
         questionnaire: formData,
         importantQuestions,
         embedding,
@@ -633,7 +630,7 @@ export default function Onboarding() {
           {q.type === 'multi-tag' && (
             <div>
               <div className="text-base text-gray-500 mb-6 font-bold bg-gray-50 inline-block px-6 py-3 rounded-full">
-                已选 {val.length} / {q.maxTags} 项
+                已选 {val.length}{q.maxTags ? ` / ${q.maxTags}` : ''} 项
               </div>
               {q.categories ? (
                 <div className="space-y-8 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
@@ -694,13 +691,6 @@ export default function Onboarding() {
             </div>
           )}
 
-          {q.type === 'ai-chat' && (
-            <div className="h-[500px] border-2 border-gray-200 rounded-2xl overflow-hidden">
-              <AIChatOnboarding 
-                onSummaryGenerated={(summary) => setFormData({ ...formData, aiSummary: summary })} 
-              />
-            </div>
-          )}
         </div>
       </div>
     );
@@ -779,7 +769,7 @@ export default function Onboarding() {
                   disabled={saving}
                   className="flex-1 py-4 px-8 bg-black hover:bg-gray-800 text-white rounded-2xl font-bold text-lg transition-colors disabled:opacity-50 shadow-lg flex items-center justify-center"
                 >
-                  {saving ? '处理中...' : (currentIndex === ALL_ITEMS.length - 1 ? (currentQ.type === 'ai-chat' && !formData.aiSummary ? '跳过并提交档案' : '提交档案') : (currentQ.isModuleIntro ? (currentQ.moduleIndex === 0 ? '开始填写' : '继续') : '下一个'))}
+                  {saving ? '处理中...' : (currentIndex === ALL_ITEMS.length - 1 ? '提交档案' : (currentQ.isModuleIntro ? (currentQ.moduleIndex === 0 ? '开始填写' : '继续') : '下一个'))}
                 </button>
               </div>
             </form>

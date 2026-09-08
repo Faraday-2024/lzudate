@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { auth, db } from '../cloudbase';
-import { Users, Handshake, User, Inbox } from 'lucide-react';
+import { Users, Handshake, User, Inbox, Trees, BadgeHelp } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { motion } from 'motion/react';
 
@@ -77,6 +77,8 @@ export default function Layout() {
   const navItems = [
     { name: '匹配', path: '/matches', icon: Users },
     { name: '搭子', path: '/buddies', icon: Handshake },
+    { name: '部落', path: '/tribes', icon: Trees },
+    { name: '揭榜', path: '/bounties', icon: BadgeHelp },
     { name: '信箱', path: '/mailbox', icon: Inbox },
     { name: '我的', path: '/profile', icon: User },
   ];
