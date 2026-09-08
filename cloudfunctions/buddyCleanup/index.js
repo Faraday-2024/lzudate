@@ -63,6 +63,12 @@ async function deleteByIds(ids) {
 
 exports.main = async (event = {}) => {
   try {
+    return {
+      success: true,
+      disabled: true,
+      message: 'buddy post cleanup is disabled; posts do not expire.'
+    };
+
     const dryRun = toBoolean(event.dryRun, false);
     const includeLegacyCreatedAt = toBoolean(event.includeLegacyCreatedAt, true);
     const limit = toNumber(event.limit, DEFAULT_LIMIT);

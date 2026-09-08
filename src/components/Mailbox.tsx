@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { db, auth } from '../cloudbase';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sparkles, MessageCircle, X, Bell } from 'lucide-react';
-import MatchAIChat from './MatchAIChat';
 
 interface ArchivedMatch {
   uid: string;
@@ -11,14 +10,13 @@ interface ArchivedMatch {
   bio: string;
   email: string;
   displayProfile?: string;
-  status: 'satisfied' | 'unsatisfied' | 'cupid' | 'shared_chat';
+  status: 'satisfied' | 'unsatisfied';
   archivedAt: string;
   college?: string;
   grade?: string;
   gender?: string;
   compatibilityScore?: number;
   aiReasoning?: string;
-  aiSummary?: string;
   sharedMessages?: any[];
   voucherCode?: string;
   voucherUsed?: boolean;
@@ -45,7 +43,6 @@ export default function Mailbox() {
   const [activeTab, setActiveTab] = useState<'matches' | 'notifications'>('matches');
   const [selectedMatch, setSelectedMatch] = useState<ArchivedMatch | null>(null);
   const [selectedNotification, setSelectedNotification] = useState<BuddyNotification | null>(null);
-  const [activeChatMatch, setActiveChatMatch] = useState<ArchivedMatch | null>(null);
 
   useEffect(() => {
     const fetchArchived = async () => {
@@ -55,11 +52,7 @@ export default function Mailbox() {
       if (!currentUid) return;
 
       try {
-        let currentEmail = '';
         const userRes = await db.collection('users').doc(currentUid).get();
-        if (userRes.data && userRes.data.length > 0) {
-          currentEmail = userRes.data[0].email || '';
-        }
 
         const archivedRes = await db.collection('archived_matches').where({ userId: currentUid }).get();
         
@@ -86,7 +79,6 @@ export default function Mailbox() {
               gender: userData.questionnaire?.gender,
               compatibilityScore: data.compatibilityScore || Math.floor(Math.random() * 20) + 80,
               aiReasoning: data.aiReasoning || '你们在生活方式和价值观上有很高的契合度。',
-              aiSummary: userData.aiSummary,
               voucherCode: data.voucherCode,
               voucherUsed: data.voucherUsed || false,
               archivedMatchDocId: data._id || data.id
@@ -94,71 +86,6 @@ export default function Mailbox() {
           }
         }
 
-        const sharedChatsRes = await db.collection('shared_chats').where({ toUserId: currentUid }).get();
-        
-        for (const chatDoc of sharedChatsRes.data || []) {
-          const data = chatDoc;
-          const fromUserRes = await db.collection('users').doc(data.fromUserId).get();
-          if (fromUserRes.data && fromUserRes.data.length > 0) {
-            const userData = fromUserRes.data[0];
-            profiles.push({
-              uid: userData.uid || userData._id,
-              name: userData.name,
-              avatarUrl: userData.avatarUrl,
-              bio: userData.bio,
-              email: userData.email,
-              displayProfile: userData.displayProfile,
-              status: 'shared_chat',
-              archivedAt: data.sharedAt || new Date().toISOString(),
-              college: userData.questionnaire?.college,
-              grade: userData.questionnaire?.grade,
-              gender: userData.questionnaire?.gender,
-              compatibilityScore: 99,
-              aiReasoning: `TA刚刚和你的AI分身聊得很开心，并把聊天记录分享给了你！`,
-              aiSummary: userData.aiSummary,
-              sharedMessages: data.messages
-            });
-          }
-        }
-
-        if (currentEmail) {
-          const cupidRes1 = await db.collection('cupid_matches').where({ email1: currentEmail }).get();
-          const cupidRes2 = await db.collection('cupid_matches').where({ email2: currentEmail }).get();
-          
-          const allCupidDocs = [...(cupidRes1.data || []), ...(cupidRes2.data || [])];
-          
-          for (const cupidDoc of allCupidDocs) {
-            const data = cupidDoc;
-            const otherEmail = data.email1 === currentEmail ? data.email2 : data.email1;
-            
-            const usersRes = await db.collection('users').where({ email: otherEmail }).get();
-            const matchedUserDoc = usersRes.data && usersRes.data.length > 0 ? usersRes.data[0] : null;
-            
-            if (matchedUserDoc) {
-              const userData = matchedUserDoc;
-              const targetUid = userData.uid || userData._id;
-              if (!archivedUids.includes(targetUid) && !profiles.some(p => p.uid === targetUid)) {
-                profiles.push({
-                  uid: targetUid,
-                  name: userData.name,
-                  avatarUrl: userData.avatarUrl,
-                  bio: userData.bio,
-                  email: userData.email,
-                  displayProfile: userData.displayProfile,
-                  status: 'cupid',
-                  archivedAt: data.createdAt || new Date().toISOString(),
-                  college: userData.questionnaire?.college,
-                  grade: userData.questionnaire?.grade,
-                  gender: userData.questionnaire?.gender,
-                  compatibilityScore: 99,
-                  aiReasoning: `有神秘的“爱神”认为你们非常般配，并为你们牵线搭桥！\n爱神留言：${data.message || '无'}`,
-                  aiSummary: userData.aiSummary
-                });
-              }
-            }
-          }
-        }
-        
         // Sort by archivedAt descending
         profiles.sort((a, b) => new Date(b.archivedAt).getTime() - new Date(a.archivedAt).getTime());
         setArchived(profiles);
@@ -251,7 +178,6 @@ export default function Mailbox() {
                       avatarUrl: userData.avatarUrl,
                       bio: userData.bio,
                       displayProfile: userData.displayProfile,
-                      aiSummary: userData.aiSummary,
                     };
                   }
                   return m;
@@ -265,7 +191,6 @@ export default function Mailbox() {
                       avatarUrl: userData.avatarUrl,
                       bio: userData.bio,
                       displayProfile: userData.displayProfile,
-                      aiSummary: userData.aiSummary,
                     };
                   }
                   return prevSelected;
@@ -409,8 +334,8 @@ export default function Mailbox() {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
                 <h3 className="text-lg font-bold text-black truncate">{match.name}</h3>
-                <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${match.status === 'satisfied' ? 'bg-green-100 text-green-700' : match.status === 'cupid' ? 'bg-pink-100 text-pink-700' : match.status === 'shared_chat' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>
-                  {match.status === 'satisfied' ? '满意' : match.status === 'cupid' ? '爱神牵线' : match.status === 'shared_chat' ? '收到聊天记录' : '不满意'}
+                <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${match.status === 'satisfied' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                  {match.status === 'satisfied' ? '满意' : '不满意'}
                 </span>
               </div>
               <p className="text-sm text-gray-500 truncate mb-1">{match.displayProfile || match.bio}</p>
@@ -542,23 +467,6 @@ export default function Mailbox() {
                       </div>
                     )}
 
-                    {selectedMatch.status === 'shared_chat' && selectedMatch.sharedMessages && (
-                      <div className="mb-4 bg-blue-50 p-4 rounded-xl border border-blue-100">
-                        <span className="text-xs font-bold text-blue-800 uppercase tracking-widest block mb-3 flex items-center gap-1">
-                          <MessageCircle className="w-3 h-3" /> TA与你的AI分身的聊天记录
-                        </span>
-                        <div className="space-y-3 max-h-60 overflow-y-auto pr-2">
-                          {selectedMatch.sharedMessages.map((msg: any, idx: number) => (
-                            <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-start' : 'justify-end'}`}>
-                              <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${msg.role === 'user' ? 'bg-white border border-gray-200 text-gray-800 rounded-bl-sm' : 'bg-blue-500 text-white rounded-br-sm'}`}>
-                                <span className="text-[10px] opacity-50 block mb-0.5">{msg.role === 'user' ? selectedMatch.name : '你的AI分身'}</span>
-                                {msg.text}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                   </div>
                 </div>
                 
@@ -592,36 +500,11 @@ export default function Mailbox() {
                       </div>
                     )}
                     
-                    {selectedMatch.aiSummary ? (
-                      <button
-                        onClick={() => setActiveChatMatch(selectedMatch)}
-                        className="w-full py-4 bg-white hover:bg-gray-50 text-black rounded-xl font-bold transition-colors flex items-center justify-center gap-2 text-sm border-2 border-gray-100 shadow-sm"
-                      >
-                        <MessageCircle className="w-5 h-5" />
-                        和TA的AI分身聊聊天
-                      </button>
-                    ) : (
-                      <div className="w-full py-4 bg-gray-50 text-gray-500 rounded-xl font-bold text-center text-sm border border-gray-100">
-                        对方未建立AI分身
-                      </div>
-                    )}
                   </div>
                 </div>
               </div>
             </motion.div>
           </div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {activeChatMatch && (
-          <MatchAIChat
-            matchUid={activeChatMatch.uid}
-            matchName={activeChatMatch.name}
-            displayProfile={activeChatMatch.displayProfile || activeChatMatch.bio || ''}
-            aiSummary={activeChatMatch.aiSummary || ''}
-            onClose={() => setActiveChatMatch(null)}
-          />
         )}
       </AnimatePresence>
 
