@@ -13,7 +13,6 @@ interface BuddyPost {
   title: string;
   content: string;
   createdAt: string;
-  expiresAt: string;
   name: string;
   avatarUrl: string;
   grade?: string;
@@ -101,9 +100,10 @@ export default function Buddies() {
     }
 
     try {
+      // Keep historical posts visible instead of silently dropping older entries behind a small page limit.
       const [buddyRes, experienceRes] = await Promise.all([
-        db.collection('buddy_posts').orderBy('createdAt', 'desc').limit(80).get(),
-        db.collection('experience_posts').orderBy('createdAt', 'desc').limit(80).get()
+        db.collection('buddy_posts').orderBy('createdAt', 'desc').limit(500).get(),
+        db.collection('experience_posts').orderBy('createdAt', 'desc').limit(500).get()
       ]);
       const raw = buddyRes.data || [];
       const valid = raw;
@@ -133,7 +133,6 @@ export default function Buddies() {
           title: doc.title,
           content: doc.content,
           createdAt: doc.createdAt,
-          expiresAt: doc.expiresAt,
           name: user?.name || fallbackName,
           avatarUrl: user?.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${uid}`,
           grade: user?.questionnaire?.grade,
@@ -163,7 +162,6 @@ export default function Buddies() {
           title: doc.title || doc.name || '',
           content: doc.content || doc.description || '',
           createdAt: doc.createdAt || new Date().toISOString(),
-          expiresAt: doc.expiresAt || '',
           name: user?.name || `同学${uid.slice(-4)}`,
           avatarUrl: user?.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${uid}`,
           grade: user?.questionnaire?.grade,
@@ -673,7 +671,7 @@ export default function Buddies() {
                 disabled={publishing}
                 className="w-full py-3.5 bg-black text-white rounded-2xl font-bold hover:bg-gray-800 transition-colors disabled:opacity-60"
               >
-                  {publishing ? '发布中...' : '发布帖子（保留 5 天）'}
+                  {publishing ? '发布中...' : '发布帖子'}
               </button>
             </form>
           </div>
