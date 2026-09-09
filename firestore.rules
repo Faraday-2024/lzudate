@@ -94,7 +94,7 @@ service cloud.firestore {
                     request.resource.data.content is string &&
                     request.resource.data.content.size() >= 10 &&
                     request.resource.data.content.size() <= 600 &&
-                    request.resource.data.keys().hasOnly(['uid', 'category', 'title', 'content', 'createdAt', 'expiresAt']);
+                    request.resource.data.keys().hasOnly(['uid', 'category', 'title', 'content', 'createdAt']);
       allow update: if isAuthenticated() &&
                     resource.data.uid == request.auth.uid &&
                     request.resource.data.uid == resource.data.uid &&
@@ -106,7 +106,7 @@ service cloud.firestore {
                     request.resource.data.content is string &&
                     request.resource.data.content.size() >= 10 &&
                     request.resource.data.content.size() <= 600 &&
-                    request.resource.data.keys().hasOnly(['uid', 'category', 'title', 'content', 'createdAt', 'expiresAt']);
+                    request.resource.data.keys().hasOnly(['uid', 'category', 'title', 'content', 'createdAt']);
       allow delete: if isAuthenticated() && resource.data.uid == request.auth.uid;
     }
 
